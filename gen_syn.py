@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Synthetic Data Generator - PyTorch Implementation
 High-performance generation for testing causal models.

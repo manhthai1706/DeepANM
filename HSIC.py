@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Hilbert Schmidt Independence Criterion (HSIC) - Professional Statistical Suite
 Includes Gamma Approximation and Permutation Testing.

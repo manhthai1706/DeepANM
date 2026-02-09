@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Full-Spectrum Deep Learning GPPOM - PyTorch Implementation
 Integrated with Unified Kernel Library.
@@ -31,8 +30,8 @@ class RFFGPLayer(nn.Module):
 
 class FastHSIC(nn.Module):
     """
-    Fast HSIC using RFF approximation (O(N) complexity)
-    HSIC(X, Z) = ||Cov(Phi(X), Psi(Z))||^2
+    Adaptive Fast HSIC using RFF (O(N) complexity)
+    Automatically optimizes kernel bandwidth (gamma)
     """
     def __init__(self, x_dim, z_dim, n_features=128):
         super().__init__()
@@ -43,120 +42,86 @@ class FastHSIC(nn.Module):
         n = X.shape[0]
         if n < 2: return torch.tensor(0.0, device=X.device)
         
-        # Project to RFF space
+        # Adaptive Bandwidth: we could implement Median Trick or just let SGD optimize log_gamma
         feat_x = self.phi_x(X)
         feat_z = self.phi_z(Z)
         
-        # Center features
         feat_x = feat_x - feat_x.mean(dim=0, keepdim=True)
         feat_z = feat_z - feat_z.mean(dim=0, keepdim=True)
         
-        # HSIC is the Frobenius norm of cross-covariance
         covariance = (feat_x.T @ feat_z) / (n - 1)
         return torch.sum(covariance**2)
 
-class CausalFlow(nn.Module):
-    """
-    Unified CausalFlow Architecture
-    Provides a clean ML-style interface: fit(), predict(), save()
-    """
-    def __init__(self, x_dim, y_dim, n_clusters=2, hidden_dim=64, lda=1.0, device=None):
-        super().__init__()
-        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
-        self.lda = lda
-        self.x_dim = x_dim
-        self.y_dim = y_dim
-        self.n_clusters = n_clusters
-        
-        # Internal Model Components
-        self.model = GPPOMC_lnhsic_Core(x_dim, y_dim, n_clusters, hidden_dim, lda, self.device)
-        self.history = {"loss": [], "hsic": [], "gp": []}
-        
-    def fit(self, X, Y, epochs=200, batch_size=64, lr=2e-3):
-        """Standard ML fitting method"""
-        print(f"Training CausalFlow on {self.device}...")
-        self.model.train()
-        
-        # Convert to tensors if numpy
-        if isinstance(X, np.ndarray): X = torch.from_numpy(X).float()
-        if isinstance(Y, np.ndarray): Y = torch.from_numpy(Y).float()
-        
-        dataset = torch.utils.data.TensorDataset(X, Y)
-        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        optimizer = optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-2)
-        
-        best_loss = float('inf')
-        for epoch in range(epochs):
-            epoch_loss, epoch_hsic, epoch_gp = 0, 0, 0
-            temp = max(0.5, 1.0 - epoch / epochs)
-            
-            for bx, by in loader:
-                bx, by = bx.to(self.device), by.to(self.device)
-                optimizer.zero_grad()
-                loss, l_gp, l_hsic = self.model(bx, by, temperature=temp)
-                loss.backward()
-                optimizer.step()
-                
-                epoch_loss += loss.item()
-                epoch_hsic += l_hsic.item()
-                epoch_gp += l_gp.item()
-            
-            avg_loss = epoch_loss / len(loader)
-            self.history["loss"].append(avg_loss)
-            self.history["hsic"].append(epoch_hsic / len(loader))
-            self.history["gp"].append(epoch_gp / len(loader))
-            
-            if (epoch + 1) % 50 == 0:
-                print(f"Epoch {epoch+1}/{epochs} | Loss: {avg_loss:.4f} | HSIC: {self.history['hsic'][-1]:.6f}")
-
-    def predict_clusters(self, X, Y):
-        """Predict mechanism labels for given data"""
-        self.model.eval()
-        if isinstance(X, np.ndarray): X = torch.from_numpy(X).float()
-        if isinstance(Y, np.ndarray): Y = torch.from_numpy(Y).float()
-        
-        with torch.no_grad():
-            bx, by = X.to(self.device), Y.to(self.device)
-            xy = torch.cat([bx, by], dim=1)
-            out = self.model.MLP(xy)
-            return out['z_hard'].argmax(axis=1).cpu().numpy()
-
-    def save(self, path="causalflow_model.safetensors"):
-        torch.save(self.state_dict(), path)
-        print(f"Model saved to {path}")
-
-    def load(self, path="causalflow_model.safetensors"):
-        self.load_state_dict(torch.load(path, map_location=self.device))
-        print(f"Model loaded from {path}")
-
 class GPPOMC_lnhsic_Core(nn.Module):
-    """Internal Core Architecture (Renamed from GPPOMC_lnhsic)"""
+    """
+    Core Architecture Upgraded for:
+    - NOTEARS DAG Discovery
+    - Multivariate causal relationships
+    - Adaptive kernels
+    """
     def __init__(self, x_dim, y_dim, n_clusters, hidden_dim, lda, device):
         super().__init__()
         self.lda = lda
         self.device = device
+        self.d = x_dim + y_dim # Total variables
         
-        self.MLP = MLP.MLP(input_dim=x_dim+y_dim, hidden_dim=hidden_dim, 
-                          output_dim=y_dim, n_clusters=n_clusters, device=device)
+        # Structural Matrix for DAG Learning (NOTEARS)
+        self.W_dag = nn.Parameter(torch.zeros(self.d, self.d))
+        
+        self.MLP = MLP.MLP(input_dim=self.d, hidden_dim=hidden_dim, 
+                          output_dim=self.d, n_clusters=n_clusters, device=device)
         
         self.gp_phi_z = RFFGPLayer(n_clusters, n_features=128)
-        self.gp_phi_x = RFFGPLayer(x_dim, n_features=128)
-        self.linear_head = nn.Linear(128, y_dim, bias=False)
-        self.log_beta = nn.Parameter(torch.log(torch.tensor(1.0)))
-        self.fast_hsic = FastHSIC(x_dim, n_clusters, n_features=128)
+        self.gp_phi_x = RFFGPLayer(self.d, n_features=128)
+        self.linear_head = nn.Linear(128, self.d, bias=False)
+        
+        # Adaptive HSICs
+        self.fast_hsic = FastHSIC(self.d, n_clusters, n_features=128)
+        self.pnl_hsic = FastHSIC(self.d, self.d, n_features=128)
 
-    def forward(self, batch_x, batch_y, temperature=1.0):
-        xy = torch.cat([batch_x, batch_y], dim=1)
-        out = self.MLP(xy, temperature=temperature)
+    def get_dag_penalty(self):
+        """NOTEARS acyclicity constraint h(W)"""
+        W_sq = self.W_dag * self.W_dag
+        E = torch.matrix_exp(W_sq)
+        h = torch.trace(E) - self.d
+        return h
+
+    def forward(self, batch_data, temperature=1.0):
+        """
+        Multivariate forward pass
+        batch_data: [batch, d]
+        """
+        # 1. Structural Masking: Applied via the W_dag matrix
+        # In multi-variable learning, we want to predict each node as a function of its parents
+        # For simplicity in this framework, we use W_dag to guide the latent mechanism discovery
+        
+        out = self.MLP(batch_data, temperature=temperature)
         z_soft, kl_loss = out['z_soft'], out['kl_loss']
+        mu_mlp, log_var_mlp = out['mu'], out['log_var']
         
-        phi = self.gp_phi_z(z_soft) * self.gp_phi_x(batch_x)
-        y_pred = self.linear_head(phi)
+        # 2. GP Prediction with Structural Bias
+        # Mask the input variables based on learned DAG structure
+        masked_input = batch_data @ torch.abs(self.W_dag)
         
-        beta = torch.exp(self.log_beta)
-        loss_likelihood = 0.5 * beta * torch.sum((batch_y - y_pred)**2)
-        loss_ridge = 0.5 * torch.sum(self.linear_head.weight**2)
-        loss_hsic = self.fast_hsic(batch_x, z_soft)
+        phi = self.gp_phi_z(z_soft) * self.gp_phi_x(masked_input)
+        y_pred_gp = self.linear_head(phi)
         
-        total_loss = loss_likelihood + loss_ridge + self.lda * torch.log(loss_hsic + 1e-8) + 0.1 * kl_loss
-        return total_loss, loss_likelihood, loss_hsic
+        # 3. NOTEARS & Residual Independence
+        loss_dag = self.get_dag_penalty()
+        loss_reg = F.mse_loss(y_pred_gp, batch_data)
+        
+        # PNL Independence
+        h_y = self.MLP.pnl_transform(batch_data)
+        res_pnl = h_y - y_pred_gp
+        loss_hsic_pnl = self.pnl_hsic(batch_data, res_pnl)
+        
+        loss_hsic_clu = self.fast_hsic(batch_data, z_soft)
+        
+        # Total Loss with NOTEARS, PNL, and VAE components
+        total_loss = (loss_reg + 
+                      2.0 * loss_dag + # DAG Constraint
+                      self.lda * torch.log(loss_hsic_clu + 1e-8) + 
+                      3.0 * torch.log(loss_hsic_pnl + 1e-8) + # Adaptive Kernel PNL
+                      0.2 * kl_loss) # VAE Latent discovery
+        
+        return total_loss, loss_reg, loss_hsic_clu

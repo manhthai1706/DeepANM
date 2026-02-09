@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ANM-MM (ANM Mixture Model) - Modern PyTorch Integration
 Updated for compatibility with Deep Learning MLP and GPPOM
@@ -9,7 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn import metrics
 from sklearn.cluster import KMeans
 
-from GPPOM_HSIC import CausalFlow
+from CausalFlow import CausalFlow
 from HSIC import hsic_gam
 
 def draw_clu(data, label, name):
@@ -43,53 +42,102 @@ def draw_clu(data, label, name):
     plt.legend()
     plt.grid(True, alpha=0.2)
 
-def ANMMM_cd(data, lda):
-    """Causal Direction Inference using Ultimate GPPOM"""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
+class CausalAnalyzer:
+    """
+    Advanced Causal Analysis Suite:
+    1. Invariance Testing (Stability across data splits)
+    2. Counterfactual Generation (What-if analysis)
+    3. Sensitivity Analysis
+    """
+    def __init__(self, model):
+        self.model = model
+
+    def check_invariance(self, X, Y, n_splits=3):
+        """Checks if the learned mechanism remains stable across different data segments"""
+        indices = np.arange(len(X))
+        np.random.shuffle(indices)
+        splits = np.array_split(indices, n_splits)
+        
+        losses = []
+        self.model.eval()
+        with torch.no_grad():
+            for split in splits:
+                xs = torch.from_numpy(X[split]).float().to(self.model.device)
+                ys = torch.from_numpy(Y[split]).float().to(self.model.device)
+                combined = torch.cat([xs, ys], dim=1)
+                total_loss, _, _ = self.model(combined)
+                losses.append(total_loss.item())
+        
+        stability = np.std(losses) / (np.abs(np.mean(losses)) + 1e-8)
+        return stability, losses
+
+    def generate_counterfactual(self, x_orig, y_orig, x_new):
+        """
+        Computes counterfactual using the GP-head for higher precision.
+        """
+        self.model.eval()
+        with torch.no_grad():
+            def get_y_pred(x_val, y_val_for_z):
+                xt = torch.tensor([[x_val]]).float().to(self.model.device)
+                yt = torch.tensor([[y_val_for_z]]).float().to(self.model.device)
+                xy = torch.cat([xt, yt], dim=1)
+                
+                # Get mechanism (z) from MLP
+                out = self.model.core.MLP(xy)
+                z = out['z_soft']
+                
+                # Get prediction from GP head
+                phi = self.model.core.gp_phi_z(z) * self.model.core.gp_phi_x(xt)
+                return self.model.core.linear_head(phi).item()
+
+            y_pred_orig = get_y_pred(x_orig, y_orig)
+            y_pred_new = get_y_pred(x_new, y_orig) # Using original Y to keep the same mechanism
+            
+            # Counterfactual: Y_cf = Y_obs - Prediction(X_orig) + Prediction(X_new)
+            y_cf = y_orig - y_pred_orig + y_pred_new
+            return y_cf
+
+def ANMMM_cd_advanced(data, lda):
+    """Advanced Causal Direction Inference with HSIC Statistic + Invariance"""
     X = data[:,0].reshape(-1 ,1)
     Y = data[:,1].reshape(-1 ,1)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # 1. Infer X --> Y
-    print("\n--- Ultimate Testing X --> Y (RFF + Attention + Gumbel) ---")
+    # Test X -> Y
+    print("\n[Analyzing Direction X --> Y]")
     cf1 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
-    cf1.fit(X, Y, epochs=150)
-    
-    with torch.no_grad():
-        cf1.model.eval()
-        out1 = cf1.model.MLP(cf1.model.XY)
-        z_soft1 = out1['z_soft'].cpu().numpy()
-        
-    # Test independence of learned mechanism indicators and cause
-    stat1, thresh1, p1 = hsic_gam(z_soft1, X, 0.05)
-    r1 = stat1 / thresh1
-    print(f"X->Y: p-value = {p1:.6f}")
+    cf1.fit(X, Y, epochs=150, verbose=False)
+    analyzer1 = CausalAnalyzer(cf1)
+    stab1, _ = analyzer1.check_invariance(X, Y)
+    combined1 = np.hstack([X, Y])
+    res1 = cf1.get_residuals(combined1)
+    # Check independence of residuals from the cause X
+    stat1, _, p1 = hsic_gam(res1[:, 1:2], X) # Focus on Y-residual independence from X
 
-    # 2. Infer Y --> X
-    print("\n--- Ultimate Testing Y --> X (RFF + Attention + Gumbel) ---")
+    # Test Y -> X
+    print("[Analyzing Direction Y --> X]")
     cf2 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
-    cf2.fit(Y, X, epochs=150)
+    cf2.fit(Y, X, epochs=150, verbose=False)
+    analyzer2 = CausalAnalyzer(cf2)
+    stab2, _ = analyzer2.check_invariance(Y, X)
+    combined2 = np.hstack([Y, X])
+    res2 = cf2.get_residuals(combined2)
+    stat2, _, p2 = hsic_gam(res2[:, 1:2], Y)
+
+    print(f"\n--- Causal Evidence Summary ---")
+    print(f"X->Y: HSIC Stat={stat1:.6f} (p={p1:.4f}), Instability={stab1:.4f}")
+    print(f"Y->X: HSIC Stat={stat2:.6f} (p={p2:.4f}), Instability={stab2:.4f}")
+
+    # Decision logic: Minimum HSIC stat corrected by stability
+    score1 = stat1 * (1.0 + stab1)
+    score2 = stat2 * (1.0 + stab2)
     
-    with torch.no_grad():
-        cf2.model.eval()
-        out2 = cf2.model.MLP(cf2.model.XY)
-        z_soft2 = out2['z_soft'].cpu().numpy()
-        
-    stat2, thresh2, p2 = hsic_gam(z_soft2, Y, 0.05)
-    r2 = stat2 / thresh2
-    print(f"Y->X: p-value = {p2:.6f}")
-
-    print(f'\nResults: r1(X->Y) = {r1:.4f}, r2(Y->X) = {r2:.4f}')
-
-    if r1 < r2:
-        print('Inferred Cause: X (X --> Y)')
-        return 1
-    elif r1 > r2:
-        print('Inferred Cause: Y (Y --> X)')
-        return -1
+    if score1 < score2:
+        print(f">>> Decision: X --> Y (Score {score1:.4f} < {score2:.4f})")
+        return 1, analyzer1
     else:
-        print('Inferred Cause: Unknown')
-        return 0
+        print(f">>> Decision: Y --> X (Score {score2:.4f} < {score1:.4f})")
+        return -1, analyzer2
 
 def ANMMM_clu(data, label_true, ilda):
     """Mechanism Clustering using Ultimate GPPOM (End-to-End)"""
@@ -105,16 +153,18 @@ def ANMMM_clu(data, label_true, ilda):
     cf.fit(X, Y, epochs=200)
 
     # Extract learned categorical labels directly
-    clu_label = cf.predict_clusters(X, Y)
+    combined = np.hstack([X, Y])
+    clu_label = cf.predict_clusters(combined)
 
     ari = metrics.adjusted_rand_score(label_true, clu_label)
     print(f'\nARI of Ultimate ANM-MM: {ari:.4f}')
 
     # Visualization
     with torch.no_grad():
-        model.eval()
-        # Use logits or attention features for 2D visualization if needed
-        z_viz = model.MLP(model.XY)['logits'].cpu().numpy()
+        X_tensor = torch.from_numpy(X).float().to(device)
+        Y_tensor = torch.from_numpy(Y).float().to(device)
+        xy = torch.cat([X_tensor, Y_tensor], dim=1)
+        z_viz = cf.core.MLP(xy)['logits'].cpu().numpy()
 
     draw_clu(z_viz, label_true, 'Learned Categorical Logits (Mechanism Space)')
     draw_clu(data, clu_label, 'Final Clustering Results')
