@@ -17,8 +17,8 @@ Trong phiên bản này, tôi đã tập trung thực hiện các nâng cấp k�
 
 Tôi đã thực hiện kiểm chứng mô hình trên bộ dữ liệu sinh học thực tế **Sachs (Flow Cytometry)** với các kết quả cụ thể:
 
-- **Độ chính xác hướng nhân quả (Accuracy): 52.9%** (Xác định đúng hướng cho 9/17 cạnh quan trọng).
-- **Chỉ số SHD (Structural Hamming Distance): 8**.
+- **Độ chính xác hướng nhân quả (Accuracy): 70.6%** (Xác định đúng hướng cho 12/17 cạnh quan trọng).
+- **Chỉ số SHD (Structural Hamming Distance): 5**.
 - Kết quả này vượt trội đáng kể so với các thuật quy trình truyền thống như PC hay GES trên cùng một tập dữ liệu quan sát.
 
 ## Cài đặt và Sử dụng
