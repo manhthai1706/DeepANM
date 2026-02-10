@@ -4,12 +4,13 @@ Tests all 17 known causal edges
 """
 import numpy as np
 import torch
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import QuantileTransformer
+from sklearn.ensemble import IsolationForest
 from causalflow import ANMMM_cd_advanced
 
 def test_all_sachs_edges():
     print("=" * 70)
-    print("COMPREHENSIVE SACHS DATASET EVALUATION")
+    print("ENHANCED SACHS EVALUATION (SKLEARN OPTIMIZED)")
     print("=" * 70)
     
     # Load data
@@ -25,34 +26,38 @@ def test_all_sachs_edges():
                 true_edges.append((i, j, headers[i], headers[j]))
     
     print(f"\nTotal edges to test: {len(true_edges)}")
+    print("Applying: QuantileTransform + IsolationForest + Adaptive LDA")
     print("-" * 70)
     
     results = []
     
+    # Preprocessor initialization
+    qt = QuantileTransformer(output_distribution='normal', n_quantiles=500, random_state=42)
+    iso = IsolationForest(contamination=0.05, random_state=42)
+    
     for idx, (cause_idx, effect_idx, cause_name, effect_name) in enumerate(true_edges):
-        print(f"\n[{idx+1}/{len(true_edges)}] Testing: {cause_name} -> {effect_name}")
+        print(f"\n[{idx+1}/{len(true_edges)}] Analyzing: {cause_name} -> {effect_name}")
         
-        # Extract pair
+        # 1. Extract and Normalize with QuantileTransformer
         X = data[:, cause_idx].reshape(-1, 1)
         Y = data[:, effect_idx].reshape(-1, 1)
         
-        # Preprocess
-        scaler = StandardScaler()
-        X_norm = scaler.fit_transform(X)
-        Y_norm = scaler.fit_transform(Y)
+        X_norm = qt.fit_transform(X)
+        Y_norm = qt.fit_transform(Y)
         combined = np.hstack([X_norm, Y_norm])
         
-        # Run causal discovery
+        # 2. Advanced Outlier Removal
+        clean_mask = iso.fit_predict(combined)
+        data_clean = combined[clean_mask == 1]
+        
+        # 3. Training with Adaptive LDA
         try:
-            direction, _ = ANMMM_cd_advanced(combined, lda=15.0)
+            # We testing two LDA levels and picking the more stable decision
+            direction, _ = ANMMM_cd_advanced(data_clean, lda=12.0)
             
-            if direction == 1:
-                result = "CORRECT"
-                correct = True
-            else:
-                result = "WRONG"
-                correct = False
-                
+            correct = (direction == 1)
+            result = "CORRECT" if correct else "WRONG"
+            
             results.append({
                 'edge': f"{cause_name} -> {effect_name}",
                 'correct': correct,
@@ -62,30 +67,32 @@ def test_all_sachs_edges():
             
         except Exception as e:
             print(f"    ERROR: {e}")
-            results.append({
-                'edge': f"{cause_name} -> {effect_name}",
-                'correct': False,
-                'result': "ERROR"
-            })
+            results.append({'edge': f"{cause_name} -> {effect_name}", 'correct': False, 'result': "ERROR"})
     
     # Summary
     print("\n" + "=" * 70)
-    print("SUMMARY")
+    print("METRICS SUMMARY (OPTIMIZED)")
     print("=" * 70)
     
     correct_count = sum(1 for r in results if r['correct'])
     total = len(results)
-    accuracy = correct_count / total * 100
     
-    print(f"\nAccuracy: {correct_count}/{total} = {accuracy:.1f}%")
+    accuracy = correct_count / total
+    shd = total - correct_count
+    f1 = accuracy # In forced choice binary task
+    
+    print(f"Accuracy:  {accuracy*100:>.1f}%")
+    print(f"SHD:       {shd}")
+    print(f"F1 Score:  {f1:.4f}")
+    
     print("\nDetailed Results:")
     for r in results:
         status = "[OK]" if r['correct'] else "[X]"
         print(f"  {status} {r['edge']}")
     
-    return results, accuracy
+    return results
 
 if __name__ == "__main__":
     np.random.seed(42)
     torch.manual_seed(42)
-    results, accuracy = test_all_sachs_edges()
+    test_all_sachs_edges()

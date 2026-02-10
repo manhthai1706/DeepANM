@@ -98,45 +98,57 @@ class CausalAnalyzer:
             return y_cf
 
 def ANMMM_cd_advanced(data, lda):
-    """Advanced Causal Direction Inference with HSIC Statistic + Invariance"""
+    """
+    Advanced Causal Direction Inference - Fixed Structure Mode
+    Forces X->Y and Y->X structures to compare pure independence.
+    """
     X = data[:,0].reshape(-1 ,1)
     Y = data[:,1].reshape(-1 ,1)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Test X -> Y
-    print("\n[Analyzing Direction X --> Y]")
+    print("\n[Testing Hypothesis: X --> Y]")
     cf1 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
-    cf1.fit(X, Y, epochs=150, verbose=False)
+    # FORCE Structure: X causes Y (W[0, 1] = 1, others = 0)
+    with torch.no_grad():
+        mask1 = torch.zeros(2, 2).to(device)
+        mask1[0, 1] = 1.0
+        cf1.core.W_dag.data = mask1
+        cf1.core.W_dag.requires_grad = False # Lock structure
+        
+    cf1.fit(X, Y, epochs=200, verbose=False) # Increased epochs for better GP fit
     analyzer1 = CausalAnalyzer(cf1)
     stab1, _ = analyzer1.check_invariance(X, Y)
     combined1 = np.hstack([X, Y])
     res1 = cf1.get_residuals(combined1)
-    # Check independence of residuals from the cause X
-    stat1, _, p1 = hsic_gam(res1[:, 1:2], X) # Focus on Y-residual independence from X
+    stat1, _, p1 = hsic_gam(res1[:, 1:2], X) 
 
     # Test Y -> X
-    print("[Analyzing Direction Y --> X]")
+    print("[Testing Hypothesis: Y --> X]")
     cf2 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
-    cf2.fit(Y, X, epochs=150, verbose=False)
+    # FORCE Structure: Y causes X (W[1, 0] = 1, others = 0)
+    with torch.no_grad():
+        mask2 = torch.zeros(2, 2).to(device)
+        mask2[1, 0] = 1.0
+        cf2.core.W_dag.data = mask2
+        cf2.core.W_dag.requires_grad = False # Lock structure
+        
+    cf2.fit(Y, X, epochs=200, verbose=False)
     analyzer2 = CausalAnalyzer(cf2)
     stab2, _ = analyzer2.check_invariance(Y, X)
     combined2 = np.hstack([Y, X])
     res2 = cf2.get_residuals(combined2)
     stat2, _, p2 = hsic_gam(res2[:, 1:2], Y)
 
-    print(f"\n--- Causal Evidence Summary ---")
-    print(f"X->Y: HSIC Stat={stat1:.6f} (p={p1:.4f}), Instability={stab1:.4f}")
-    print(f"Y->X: HSIC Stat={stat2:.6f} (p={p2:.4f}), Instability={stab2:.4f}")
-
-    # Decision logic: Minimum HSIC stat corrected by stability
-    score1 = stat1 * (1.0 + stab1)
-    score2 = stat2 * (1.0 + stab2)
+    # Final Decision logic
+    print(f"X->Y HSIC: {stat1:.6f} | Y->X HSIC: {stat2:.6f}")
+    
+    score1 = stat1 * (1.0 + stab1 * 0.5)
+    score2 = stat2 * (1.0 + stab2 * 0.5)
     
     if score1 < score2:
-        print(f">>> Decision: X --> Y (Score {score1:.4f} < {score2:.4f})")
         return 1, analyzer1
     else:
-        print(f">>> Decision: Y --> X (Score {score2:.4f} < {score1:.4f})")
         return -1, analyzer2
 
 def ANMMM_clu(data, label_true, ilda):
