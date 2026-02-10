@@ -7,7 +7,7 @@ CausalFlow là một framework khám phá nhân quả (Causal Discovery) tiên t
 
 Dựa trên nền tảng của phương pháp GPPOM-HSIC, CausalFlow tích hợp các công nghệ SOTA để tối ưu hóa khả năng mô hình hóa nhiễu và tìm kiếm cấu trúc đồ thị liên tục.
 
-## 🚀 Cải tiến so với GPPOM-HSIC (base)
+## Cải tiến so với GPPOM-HSIC (base)
 
 Mô hình CausalFlow mang đến những nâng cấp kỹ thuật quan trọng so với phiên bản GPPOM-HSIC nguyên bản của `amber0309`:
 
@@ -19,14 +19,14 @@ Mô hình CausalFlow mang đến những nâng cấp kỹ thuật quan trọng s
 | **Tiền xử lý** | Cơ bản | **Advanced Pipeline**: Tích hợp Quantile Transformation và Isolation Forest để làm sạch dữ liệu. |
 | **Kiến trúc MLP** | Standard MLP | **SOTA Backbone**: Tích hợp Self-Attention, Gated Residual Networks (GRN) và VAE. |
 
-## 🛠 Đặc điểm Kỹ thuật
+## Đặc điểm Kỹ thuật
 
 - **Neural Spline Flows (NSF):** Khả năng mô hình hóa các hàm chuyển đổi nhiễu phi tuyến bậc cao, giúp trích xuất phần dư (residuals) sạch hơn cho các phép thử độc lập.
 - **Differentiable DAG Discovery:** Sử dụng thuật toán NOTEARS để ép ma trận trọng số tuân thủ tính chất đồ thị không vòng (Acyclicity), cho phép tìm kiếm DAG đa biến trực tiếp bằng Gradient Descent.
 - **Hybrid Objective Function:** Tối ưu hóa đồng thời sai số dự báo (MSE), tính không vòng (DAG Penalty) và tính độc lập nhân quả (HSIC Penalty).
 - **Latent Mechanism Discovery:** Sử dụng đầu VAE kết hợp Gumbel-Softmax để tự động nhận diện các cơ chế nhân quả tiềm ẩn hoặc biến ẩn trong dữ liệu.
 
-## 📊 Kết quả Thực nghiệm (Benchmarks)
+## Kết quả Thực nghiệm (Benchmarks)
 
 Hiệu suất của hệ thống được kiểm chứng trên bộ dữ liệu sinh học thực tế **Sachs (Flow Cytometry)**, đạt kết quả vượt trội so với các phương pháp truyền thống:
 
@@ -34,7 +34,7 @@ Hiệu suất của hệ thống được kiểm chứng trên bộ dữ liệu 
 - **SHD (Structural Hamming Distance): 5** (Tổng số cạnh bị xác định sai hướng).
 - Hệ thống thể hiện khả năng chống nhiễu mạnh mẽ và độ ổn định cao trên dữ liệu quan sát thực tế.
 
-## 📦 Cài đặt
+## Cài đặt
 
 Cài đặt trực tiếp từ kho lưu trữ GitHub:
 
@@ -42,7 +42,7 @@ Cài đặt trực tiếp từ kho lưu trữ GitHub:
 pip install git+https://github.com/manhthai1706/CausalFlow.git
 ```
 
-## 📖 Hướng dẫn Sử dụng
+## Hướng dẫn Sử dụng
 
 ### Phân tích hướng nhân quả song biến (Bivariate)
 ```python
@@ -64,7 +64,7 @@ model.fit(data_matrix, epochs=200)
 W_raw, W_binary = model.get_dag_matrix(threshold=0.1)
 ```
 
-## 📚 Tham khảo
+## Tham khảo
 
 - **GPPOM-HSIC (amber0309).** [GitHub Repository](https://github.com/amber0309). (Cơ sở thuật toán ban đầu).
 - **Zheng, X., et al. (2018).** "DAGs with NO TEARS." *NeurIPS*.
