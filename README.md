@@ -48,9 +48,14 @@ W_raw, W_binary = model.get_dag_matrix(threshold=0.1)
 
 Dự án này được tôi phát triển dựa trên cảm hứng và mã nguồn gốc từ nghiên cứu GPPOM-HSIC của [amber0309](https://github.com/amber0309). Tôi xin gửi lời cảm ơn chân thành đến tác giả vì những đóng góp nền tảng cho cộng đồng nghiên cứu nhân quả.
 
-- Zheng, X., et al. "DAGs with NO TEARS" (2018).
-- Durkan, C., et al. "Neural Spline Flows" (2019).
-- Scikit-learn: Dành cho các công cụ tiền xử lý nâng cao.
+- **Zheng, X., et al. (2018).** "DAGs with NO TEARS: Continuous Optimization for Structure Learning." *NeurIPS*. (Cơ sở cho thuật toán học đồ thị liên tục).
+- **Durkan, C., et al. (2019).** "Neural Spline Flows." *NeurIPS*. (Cơ sở cho việc mô hình hóa nhiễu phi tuyến bằng Spline).
+- **Gretton, A., et al. (2005).** "Measuring Statistical Dependence with Hilbert-Schmidt Norms." *ALT*. (Nền tảng của phép thử độc lập HSIC).
+- **Gretton, A., et al. (2007).** "A Kernel Statistical Test of Independence." *NeurIPS*. (Phép thử HSIC với xấp xỉ Gamma và Permutation test).
+- **Kingma, D. P., & Welling, M. (2013).** "Auto-Encoding Variational Bayes." *ICLR*. (Cơ sở cho cơ chế VAE phát hiện cơ chế tiềm ẩn trong MLP).
+- **Liu, F. T., et al. (2008).** "Isolation Forest." *ICDM*. (Công nghệ lọc Outlier để làm sạch dữ liệu protein).
+- **Pedregosa, F., et al. (2011).** "Scikit-learn: Machine Learning in Python." *JMLR*. (Cung cấp QuantileTransformer và công cụ thực nghiệm mạnh mẽ).
+- **Paszke, A., et al. (2019).** "PyTorch: An Imperative Style, High-Performance Deep Learning Library." *NeurIPS*.
 
 ## License
 Dự án được phát hành dưới giấy phép MIT License.
