@@ -46,6 +46,7 @@ W_raw, W_binary = model.get_dag_matrix(threshold=0.1)
 
 ## Tham khảo
 
+- **GPPOM-HSIC (amber0309).** "Gaussian Process POuM with HSIC." [GitHub Repository](https://github.com/amber0309). (Mã nguồn nền tảng cho việc triển khai HSIC và GP).
 - **Zheng, X., et al. (2018).** "DAGs with NO TEARS: Continuous Optimization for Structure Learning." *NeurIPS*. (Thuật toán học đồ thị DAG liên tục).
 - **Durkan, C., et al. (2019).** "Neural Spline Flows." *NeurIPS*. (Mô hình hóa nhiễu phi tuyến phức tạp bằng Spline Flows).
 - **Zhang, K., & Hyvarinen, A. (2009).** "On the Identifiability of the Post-Nonlinear Causal Model." *UAI*. (Cơ sở cho mô hình PNL mà tôi đã tích hợp).
