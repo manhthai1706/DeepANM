@@ -44,9 +44,7 @@ model.fit(data)
 W_raw, W_binary = model.get_dag_matrix(threshold=0.1)
 ```
 
-## Tri ân & Tham khảo
-
-Dự án này được tôi phát triển dựa trên cảm hứng và mã nguồn gốc từ nghiên cứu GPPOM-HSIC của [amber0309](https://github.com/amber0309). Tôi xin gửi lời cảm ơn chân thành đến tác giả vì những đóng góp nền tảng cho cộng đồng nghiên cứu nhân quả.
+## Tham khảo
 
 - **Zheng, X., et al. (2018).** "DAGs with NO TEARS: Continuous Optimization for Structure Learning." *NeurIPS*. (Thuật toán học đồ thị DAG liên tục).
 - **Durkan, C., et al. (2019).** "Neural Spline Flows." *NeurIPS*. (Mô hình hóa nhiễu phi tuyến phức tạp bằng Spline Flows).
