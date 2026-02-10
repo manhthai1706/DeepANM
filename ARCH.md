@@ -144,4 +144,46 @@ graph TD
     
     SCORE1 & SCORE2 --> COMP[Compare Scores]
     COMP --> DECIDE[Final Decision: Min Score Wins]
+
+---
+
+## 8. Luồng hoạt động tổng thể (Overall System Workflow)
+
+Sơ đồ dưới đây mô tả hành trình của dữ liệu từ khi bắt đầu cho đến khi trích xuất được tri thức nhân quả:
+
+```mermaid
+graph TD
+    %% Input Stage
+    DATA[Dữ liệu quan sát] --> PRE[Tiền xử lý: Quantile + Isolation Forest]
+    
+    %% Model Initialization
+    PRE --> INIT[Khởi tạo mô hình CausalFlow]
+    
+    %% Training Loop
+    subgraph Training_Phase [Giai đoạn Huấn luyện]
+        INIT --> FORWARD[Forward Pass: MLP Backbone]
+        FORWARD --> LATENT[VAE: Latent Mechanism Discovery]
+        LATENT --> GP[Gaussian Process Prediction]
+        GP --> REG[Tính MSE Loss]
+        
+        subgraph Constraints [Ràng buộc Nhân quả]
+            W[W_dag Matrix] --> NT[NOTEARS Acyclicity Penalty]
+            GP --> RES[Trích xuất Residuals]
+            RES --> HSIC[HSIC Independence Penalty]
+        end
+        
+        REG & NT & HSIC --> OPT[AdamW Optimizer Update]
+        OPT -->|Lặp lại| FORWARD
+    end
+    
+    %% Inference Phase
+    Training_Phase --> INF[Giai đoạn Suy diễn / Trích xuất]
+    
+    subgraph Analysis_Phase [Phân tích & Kết luận]
+        INF --> DAG_MAT[Lấy ma trận DAG từ W_dag]
+        INF --> BIV_TEST[Kiểm tra hướng song biến Fixed-Structure]
+    end
+    
+    DAG_MAT & BIV_TEST --> OUTPUT[Cấu trúc Nhân quả cuối cùng]
+```
 ```
