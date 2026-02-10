@@ -1,86 +1,105 @@
-# CausalFlow Architecture Overview
+# CausalFlow Technical Specification & Architecture
 
-Tài liệu này mô tả cấu trúc kỹ thuật và quy trình vận hành của framework CausalFlow.
+Tài liệu này cung cấp cái nhìn chuyên sâu về kiến trúc nội bộ, các thành phần toán học và quy trình xử lý của framework **CausalFlow**.
 
-## 1. Sơ đồ hoạt động tổng thể (System Workflow)
+---
 
-Mô hình hoạt động dựa trên sự phối hợp giữa Deep Learning (MLP), Học đồ thị (NOTEARS) và Thống kê hạt nhân (GP/HSIC).
+## 1. Cấu trúc Mô hình Phân lớp (Layered Architecture)
+
+CausalFlow được thiết kế theo cấu trục phân lớp để tách biệt giữa việc trích xuất đặc trưng, mô hình hóa nhiễu và tối ưu hóa cấu trúc đồ thị.
 
 ```mermaid
 graph TD
-    A[Input Data] --> B[Advanced Preprocessing]
-    B --> B1[QuantileTransformer - Normalization]
-    B --> B2[IsolationForest - Outlier Removal]
-    
-    subgraph CausalFlow_Core [CausalFlow Core Engine]
-        C[Multivariate Backbone] --> D[VAE Head: Latent Discovery]
-        C --> E[Neural Spline Flows: Noise Modeling]
-        C --> F[NOTEARS: DAG Matrix Optimization]
-        D & E & F --> G[Gaussian Process Head]
+    subgraph Input_Layer [Mô đun Tiền xử lý]
+        I[Raw Data] --> QT[Quantile Transformer: Gaussianizing]
+        QT --> IF[Isolation Forest: Outlier Filtration]
     end
-    
-    G --> H[Residual Extraction]
-    H --> I[HSIC Independence Testing]
-    I --> J[Causal Decision / DAG Matrix]
+
+    subgraph Feature_Extraction [Core Backbone - MLP Module]
+        IF --> ATT[Self-Attention: Feature Weighting]
+        ATT --> RB[ResNet Blocks: Deep Processing]
+        RB --> GRN[Gated Residual Networks: Input Gating]
+    end
+
+    subgraph Causal_Discovery [Causal Engine - GPPOM Module]
+        GRN --> VAE[VAE Head: Latent Mechanism Z]
+        GRN --> NSF[Neural Spline Flows: Noise H]
+        GRN --> NT[NOTEARS: Adjacency Matrix W]
+    end
+
+    subgraph Inference_Layer [Statistical Testing]
+        NSF & VAE --> GP[Gaussian Process Head: Prediction]
+        GP --> RES[Residual Extraction]
+        RES --> HSIC[HSIC: Independence Validation]
+    end
+
+    HSIC --> OUT[Bail: Causal Direction / DAG]
 ```
 
 ---
 
-## 2. Chi tiết chức năng từng File
+## 2. Chi tiết các thành phần SOTA (State-of-the-Art Components)
 
-### Khối Module `core/` (Nền tảng thuật toán)
+### 2.1. Neural Spline Flows (Mô hình hóa Nhiễu)
+Thay vì giả định nhiễu là dạng Gaussian đơn giản, dự án sử dụng **Monotonic Spline Layers**.
+*   **Cơ chế:** Sử dụng các hàm Spline đơn điệu bậc ba để thực hiện phép biến đổi $h(Y)$.
+*   **Ưu điểm:** Cho phép mô hình hóa các phân phối nhiễu cực kỳ phức tạp (Multi-modal, Heavy-tailed) mà vẫn đảm bảo tính khả nghịch (invertibility) để trích xuất sạch nhiễu.
 
-*   **`mlp.py` (Mạng nơ-ron đa nhiệm):**
-    *   Sử dụng **ResBlocks** và **Attention** để trích xuất đặc trưng.
-    *   **VAE Head:** Tìm kiếm các biến cơ chế tiềm ẩn (z).
-    *   **Monotonic Spline Layer:** Triển khai Neural Spline Flows để xử lý nhiễu phi tuyến.
-*   **`gppom_hsic.py` (Trái tim của mô hình):**
-    *   Kết hợp toán học của NOTEARS (Ràng buộc đồ thị không vòng) với Gaussian Process.
-    *   Tính toán h(W) penalty để ép ma trận trọng số về dạng DAG.
-*   **`kernels.py`:** Thư viện nhân (RBF, Matern, Polynomial...) có tính đạo hàm để tối ưu hóa trực tiếp băng thông.
-*   **`hsic.py`:** Triển khai các phép thử độc lập thống kê (Gamma Approximation và Permutation) để kiểm tra sự độc lập của phần dư.
+### 2.2. Differentiable DAG Learning (NOTEARS)
+Sử dụng phương pháp tối ưu hóa liên tục trên ma trận trọng số $W$.
+*   **Hàm ràng buộc:** $h(W) = Tr(e^{W \circ W}) - d = 0$.
+*   **Mục tiêu:** Ép ma trận kề phải là đồ thị không vòng (Directed Acyclic Graph) thông qua Gradient Descent, giúp tránh việc phải tìm kiếm tổ hợp (combinatorial search) tốn kém.
 
-### Khối Module `models/` (Giao diện cấp cao)
-
-*   **`causalflow.py`:** Lớp bọc chính (Wrapper) cung cấp API `fit()`, `get_dag_matrix()` và `predict()` tương tự scikit-learn.
-*   **`trainer.py`:** Quản lý vòng lặp huấn luyện, tối ưu hóa hàm toán tổng hợp (Likelihood + DAG Penalty + HSIC Penalty).
-*   **`analysis.py`:** Xây dựng quy trình phân tích hướng nhân quả song biến (Bivariate) bằng cách so sánh độ độc lập phần dư giữa hai hướng giả định.
+### 2.3. Fast HSIC via Random Fourier Features (RFF)
+Để tăng tốc phép thử độc lập thống kê từ $O(N^2)$ xuống $O(N)$:
+*   **Cơ chế:** Ánh xạ dữ liệu vào không gian đặc trưng RKHS sử dụng các hàm Sine/Cosine ngẫu nhiên.
+*   **Ứng dụng:** Tính toán sự độc lập giữa phần dư và nguyên nhân trong thời gian thực ngay khi huấn luyện.
 
 ---
 
-## 3. Quy trình phân tích hướng nhân quả (ANM-MM Flow)
+## 3. Quy trình thực thi các Module (File-level Flow)
 
-Đây là quy trình giúp đạt được độ chính xác SOTA trên tập dữ liệu Sachs:
+### 📂 `causalflow/core/`
+*   **`mlp.py`**: Chứa lớp `MLP` đa đầu ra. Nó không chỉ dự báo giá trị mà còn trích xuất tham số của phân phối tiềm ẩn và thực hiện phép biến đổi PNL (Post-Nonlinear).
+*   **`gppom_hsic.py`**: Quản lý `GPPOMC_lnhsic_Core`. Đây là nơi "hợp nhất" kết quả từ MLP với ràng buộc DAG NOTEARS. Nó tính toán mất mát tổng hợp để điều phối toàn bộ các thành phần khác.
+*   **`kernels.py`**: Định nghĩa các Kernel đạo hàm. Khả năng tự học (Adaptive) của mô hình nằm ở việc tối ưu hóa `log_gamma` (băng thông) và `log_alpha` (biên độ) của các nhân này.
+
+### 📂 `causalflow/models/`
+*   **`analysis.py`**: Triển khai `ANMMM_cd_advanced`.
+    1.  Khởi tạo 2 thực thể `CausalFlow`.
+    2.  Khóa cứng cấu trúc: `W_dag[i,j]=1` cho hướng thuận và `W_dag[j,i]=1` cho hướng nghịch.
+    3.  Đo đạc độ độc lập của phần dư để đưa ra kết luận cuối cùng.
+*   **`trainer.py`**: Sử dụng bộ tối ưu **AdamW** với Weight Decay để tránh Overfitting, quản lý việc giảm nhiệt độ (temperature) cho lớp Gumbel-Softmax.
+
+---
+
+## 4. Đặc tả luồng dữ liệu (Data Flow Analysis)
 
 ```mermaid
 sequenceDiagram
-    participant User as Người dùng
-    participant ANM as Analysis Module
-    participant CF as CausalFlow Instance
-    
-    User->>ANM: Gửi cặp biến (X, Y)
-    ANM->>ANM: Tiền xử lý (Quantile + Isolation Forest)
-    
-    Note over ANM, CF: Thử nghiệm Hướng 1: X -> Y
-    ANM->>CF: Khóa cấu trúc W_dag [0,1]=1
-    CF-->>ANM: Trả về HSIC Score 1
-    
-    Note over ANM, CF: Thử nghiệm Hướng 2: Y -> X
-    ANM->>CF: Khóa cấu trúc W_dag [1,0]=1
-    CF-->>ANM: Trả về HSIC Score 2
-    
-    ANM->>ANM: So sánh (Score 1 vs Score 2)
-    ANM-->>User: Kết quả hướng có HSIC thấp nhất
+    participant D as Data
+    participant B as Backbone (ResNet+Attention)
+    participant L as Latent (VAE/NSF)
+    participant G as GP Head
+    participant H as HSIC Test
+
+    D->>B: Input Tensor [Batch, Dim]
+    B->>L: Latent Representation
+    L->>G: Probabilistic Mapping with DAG Bias
+    G->>H: Estimated Residuals
+    H->>H: Statistical Independence Check
+    H-->>D: Gradient Feedback
 ```
 
 ---
 
-## 4. Hàm mất mát tổng hợp (Integrated Loss Function)
+## 5. Hàm mục tiêu tối ưu hóa (Comprehensive Objective)
 
-CausalFlow tối ưu hóa đồng thời 4 thành phần:
-$$Loss = Loss_{Reg} + \alpha \cdot Loss_{DAG} + \beta \cdot \log(Loss_{HSIC}) + \gamma \cdot Loss_{KL}$$
+Mô hình tối ưu hóa hàm toán học cực kỳ chặt chẽ:
 
-1.  **$Loss_{Reg}$**: Sai số dự báo của Gaussian Process.
-2.  **$Loss_{DAG}$**: Ràng buộc NOTEARS để đảm bảo cấu trúc là đồ thị không vòng.
-3.  **$Loss_{HSIC}$**: Ép nhiễu (residuals) phải độc lập với nguyên nhân.
-4.  **$Loss_{KL}$**: Ràng buộc phân phối cho việc khám phá biến ẩn.
+$${\cal L}_{total} = {\cal L}_{MSE} + \lambda_{dag} h(W) + \lambda_{hsic} \log(HSIC(X, \hat{\epsilon})) + \lambda_{kl} D_{KL}(q(z)||p(z))$$
+
+*   **MSE:** Đảm bảo khả năng giải thích dữ liệu.
+*   **h(W):** Đảm bảo tính hợp lệ của đồ thị nhân quả.
+*   **log(HSIC):** Đảm bảo tính đúng đắn của giả thuyết "Nguyên nhân độc lập với Nhiễu".
+*   **KL:** Đảm bảo cấu trúc tiềm ẩn của cơ chế nhân quả không bị sụp đổ.
