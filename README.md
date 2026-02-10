@@ -9,7 +9,7 @@ Về bản chất, CausalFlow đóng vai trò là "động cơ" (backbone) xử 
 
 ## Cải tiến so với GPPOM-HSIC (base)
 
-CausalFlow nâng cấp khả năng của GPPOM-HSIC bằng cách tích hợp các công nghệ SOTA, biến nó thành một engine chuyên sâu cho việc khám phá hướng nhân quả:
+CausalFlow nâng cấp khả năng của GPPOM-HSIC bằng cách tích hợp các công nghệ hiện đại, biến nó thành một engine chuyên sâu cho việc khám phá hướng nhân quả:
 
 | Tính năng | GPPOM-HSIC (Base) | **CausalFlow Architecture (Enhanced)** |
 | :--- | :--- | :--- |
@@ -47,7 +47,7 @@ pip install git+https://github.com/manhthai1706/CausalFlow.git
 Quy trình sử dụng tập trung vào các hàm phân tích hướng nhân quả mạnh mẽ (ANM-MM):
 
 ### Phân tích hướng nhân quả song biến
-Đây là cách sử dụng chính để đạt được hiệu suất SOTA:
+Đây là cách sử dụng chính để đạt được hiệu suất tối ưu:
 ```python
 from causalflow import ANMMM_cd_advanced
 import numpy as np
