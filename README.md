@@ -74,7 +74,7 @@ W_raw, W_binary = engine.get_dag_matrix(threshold=0.1)
 
 ## Tham khảo
 
-- **GPPOM-HSIC (amber0309).** [GitHub Repository](https://github.com/amber0309). (Cơ sở thuật toán ban đầu).
+- **ANM-MM (amber0309).** [GitHub Repository](https://github.com/amber0309/ANM-MM). (Cơ sở thuật toán ban đầu).
 - **Zheng, X., et al. (2018).** "DAGs with NO TEARS: Continuous Optimization for Structure Learning." *NeurIPS*.
 - **Durkan, C., et al. (2019).** "Neural Spline Flows." *NeurIPS*.
 - **Zhang, K., & Hyvarinen, A. (2009).** "On the Identifiability of the Post-Nonlinear Causal Model." *UAI*.
