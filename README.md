@@ -7,17 +7,16 @@ CausalFlow là một **kiến trúc mạng nơ-ron sâu (Deep Neural Architectur
 
 Dựa trên nền tảng của phương pháp ANM-MM, CausalFlow đóng vai trò là một engine tính toán mạnh mẽ, kết hợp giữa học sâu và các lý thuyết nhân quả hiện đại.
 
-## Cải tiến so với GPPOM-HSIC (base)
+## Cải tiến đột phá so với ANM-MM / GPPOM-HSIC (base)
 
-CausalFlow chuyển đổi nền tảng GPPOM-HSIC từ một bộ công cụ rời rạc thành một **Kiến trúc Mô hình Hợp nhất**:
+CausalFlow không chỉ kế thừa mà còn nâng cấp toàn diện nền tảng từ bộ công cụ rời rạc mã nguồn mở của [amber0309](https://github.com/amber0309/ANM-MM) thành một **Hệ sinh thái Nhân quả Deep Learning** hiện đại:
 
-| Tính năng | GPPOM-HSIC (Base) | **CausalFlow Architecture (Unified)** |
-| :--- | :--- | :--- |
-| **Kiến trúc** | Module rời rạc | **Unified Model**: Tích hợp sẵn `fit`, `predict_direction`, `counterfactual`. |
-| **Sử dụng** | Gọi hàm thủ công | **Smart Init**: Tự động train và suy diễn chiều dữ liệu khi khởi tạo. |
-| **Mô hình hóa** | Phân phối đơn giản | **Neural Spline Flows (NSF)**: Học sâu phân phối nhiễu phi tuyến. |
-| **Backbone** | Standard MLP | **Deep ResNet + Self-Attention**: Tự động chọn lọc đặc trưng quan trọng. |
-| **Suy diễn** | Tìm kiếm tổ hợp | **Differentiable DAG Discovery**: Tối ưu hóa đồ thị liên tục (NOTEARS). |
+- **Hợp nhất Mô hình (Unified Model Architecture):** Thay vì các script chạy lẻ cho từng nhiệm vụ (như `ANM_MM_CD.py`), CausalFlow đóng gói mọi thứ vào lớp `CausalFlow`. Một model duy nhất có khả năng đảm nhận từ training, cấu trúc đồ thị (DAG) đến phân tích giả tưởng.
+- **Backbone Nâng cao (Advanced Neural Backbone):** Nâng cấp từ MLP đơn giản lên kiến trúc **Deep ResNet kết hợp Self-Attention** và **Gated Residual Networks (GRN)**. Điều này cho phép mô hình tự động chọn lọc các kênh thông tin quan trọng và xử lý các hàm phi tuyến cực kỳ phức tạp.
+- ** Neural Spline Flows (NSF):** Thay thế mô hình nhiễu Gaussian thông thường bằng công nghệ Spline Flows. CausalFlow học được phân phối nhiễu thực tế thông qua các hàm Spline có thể đạo hàm, giúp việc trích xuất phần dư (residuals) đạt độ sạch vượt trội.
+- **Tối ưu hóa Đồ thị Liên tục (Differentiable DAG Discovery):** Tích hợp tư duy của thuật toán **NOTEARS**, chuyển đổi bài toán tìm kiếm đồ thị rời rạc thành bài toán tối ưu hóa liên tục trên ma trận trọng số, giúp mô hình hội tụ nhanh và chính xác hơn trên hệ đa biến.
+- **Hệ thống Tiền xử lý Thông minh:** Tích hợp bộ lọc **Isolation Forest** để loại bỏ nhiễu ngoại lai và **QuantileTransformer** để chuẩn hóa dữ liệu về phân phối Gaussian, giúp tăng độ ổn định của các phép thử HSIC.
+- **API Hướng đối tượng (Object-Oriented API):** Xây dựng theo tiêu chuẩn Scikit-learn/PyTorch, cho phép người dùng sử dụng các cú pháp hiện đại như `model(data, train=True)` hoặc `model.predict_direction()`.
 
 ## Đặc điểm Kỹ thuật
 
