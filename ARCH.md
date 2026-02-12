@@ -178,25 +178,21 @@ sequenceDiagram
     U->>A: data N x 2
     Note over A: X = col 0, Y = col 1
 
-    rect rgb(240, 248, 255)
-        Note over A: Giả thuyết 1: X gây Y
-        A->>M1: W_dag = [[0,1],[0,0]], khóa
-        A->>M1: fit(X, Y, 200 epochs)
-        A->>M1: get_residuals
-        A->>M1: check_stability
-        A->>H: hsic_gam(res1, X)
-        H-->>A: stat1
-    end
+    Note over A,M1: Giả thuyết 1: X gây Y
+    A->>M1: W_dag = [[0,1],[0,0]], khóa
+    A->>M1: fit(X, Y, 200 epochs)
+    A->>M1: get_residuals
+    A->>M1: check_stability
+    A->>H: hsic_gam(res1, X)
+    H-->>A: stat1
 
-    rect rgb(255, 245, 238)
-        Note over A: Giả thuyết 2: Y gây X
-        A->>M2: W_dag = [[0,0],[1,0]], khóa
-        A->>M2: fit(Y, X, 200 epochs)
-        A->>M2: get_residuals
-        A->>M2: check_stability
-        A->>H: hsic_gam(res2, Y)
-        H-->>A: stat2
-    end
+    Note over A,M2: Giả thuyết 2: Y gây X
+    A->>M2: W_dag = [[0,0],[1,0]], khóa
+    A->>M2: fit(Y, X, 200 epochs)
+    A->>M2: get_residuals
+    A->>M2: check_stability
+    A->>H: hsic_gam(res2, Y)
+    H-->>A: stat2
 
     Note over A: score = stat * (1 + stab*0.5)
     alt score1 < score2
