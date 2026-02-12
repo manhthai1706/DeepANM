@@ -8,23 +8,31 @@ Tài liệu mô tả luồng hoạt động bên trong của từng file và sơ
 
 ```mermaid
 graph TD
-    A[Dữ liệu thô] --> B[QuantileTransformer]
-    B --> C[IsolationForest]
-    C --> D["CausalFlow.__init__(data) hoặc fit()"]
-    D --> E[Khởi tạo GPPOMC_lnhsic_Core]
-    E --> F[CausalFlowTrainer.train]
-    F --> G[MLP backbone]
-    G --> H["z_soft, mu, log_var, pnl_transform"]
-    H --> I["masked_input = data @ |W_dag|"]
-    I --> J["phi = RFF_z(z_soft) * RFF_x(masked)"]
-    J --> K["y_pred = linear_head(phi)"]
-    K --> L["Tính loss tổng hợp"]
-    L --> M["backward + AdamW"]
-    M --> N{Truy vấn kết quả}
-    N --> O["get_dag_matrix()"]
-    N --> P["predict_direction()"]
-    N --> Q["predict_counterfactual()"]
-    N --> R["check_stability()"]
+    subgraph PP ["Tiền xử lý"]
+        A[Dữ liệu thô] --> B[QuantileTransformer]
+        B --> C[IsolationForest]
+    end
+
+    C --> D["CausalFlow.fit()"]
+
+    subgraph TRAIN ["Huấn luyện - GPPOMC_lnhsic_Core"]
+        D --> E[MLP backbone]
+        E --> F["z_soft — phân cụm cơ chế"]
+        E --> G["mu, log_var — dự đoán"]
+        D --> H["masked = data @ abs W_dag"]
+        F --> I["phi = RFF_z * RFF_x"]
+        H --> I
+        I --> J["y_pred = linear_head phi"]
+        J --> K["Loss = MSE + DAG + HSIC + KL"]
+        K --> L["backward + AdamW"]
+    end
+
+    L --> M{Model đã train}
+
+    M --> N["get_dag_matrix()"]
+    M --> O["predict_direction()"]
+    M --> P["predict_counterfactual()"]
+    M --> Q["check_stability()"]
 ```
 
 ---
