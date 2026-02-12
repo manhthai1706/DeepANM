@@ -142,23 +142,26 @@ graph TD
 
 ## 5. `hsic.py` — Kiểm tra tính độc lập
 
+### hsic_gam — Gamma Approximation
+
 ```mermaid
 graph TD
-    subgraph GAM [hsic_gam — Gamma Approximation]
-        A1["X, Y"] --> B1["sigma = sqrt median dist"]
-        B1 --> C1["K = center RBF X,X,sigma_x"]
-        B1 --> D1["L = center RBF Y,Y,sigma_y"]
-        C1 --> E1["test_stat = sum K*L / n"]
-        D1 --> E1
-        E1 --> F1["Fit Gamma alpha, beta dưới H0"]
-        F1 --> G1["p_value = 1 - CDF test_stat"]
-    end
+    A["X, Y numpy hoặc tensor"] --> B["sigma = sqrt median pairwise dist"]
+    B --> C["K = center RBF X,X,sigma_x"]
+    B --> D["L = center RBF Y,Y,sigma_y"]
+    C --> E["test_stat = sum K*L / n"]
+    D --> E
+    E --> F["Fit Gamma alpha, beta dưới H0"]
+    F --> G["p_value = 1 - CDF test_stat"]
+```
 
-    subgraph PERM [hsic_perm — Permutation Test]
-        A2["X, Y"] --> B2["stat_gốc = hsic_gam X, Y"]
-        B2 --> C2["Lặp 500 lần: shuffle Y"]
-        C2 --> D2["p = count perm >= gốc / 500"]
-    end
+### hsic_perm — Permutation Test
+
+```mermaid
+graph TD
+    A["X, Y"] --> B["stat gốc = hsic_gam X, Y"]
+    B --> C["Lặp 500 lần: shuffle Y, tính HSIC"]
+    C --> D["p = count perm >= gốc / 500"]
 ```
 
 ---
