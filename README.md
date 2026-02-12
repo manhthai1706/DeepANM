@@ -165,13 +165,22 @@ y_cf = model.predict_counterfactual(x_orig=1.0, y_orig=2.0, x_new=3.0)
 - **Accuracy**: 70.6% (12/17 cạnh đúng hướng)
 - **SHD**: 5
 
-### So sánh hiệu năng
+### So sánh hiệu năng trên Sachs
 
-| Phương pháp | Accuracy (Sachs) | SHD |
-| :--- | :--- | :--- |
-| PC Algorithm | ~50-55% | Cao |
-| NOTEARS (gốc) | ~60% | > 8 |
-| CausalFlow | 70.6% | 5 |
+Bảng dưới đây tổng hợp kết quả từ các bài báo gốc và các benchmark công khai. SHD (Structural Hamming Distance) càng thấp càng tốt. Accuracy đo tỉ lệ cạnh xác định đúng hướng.
+
+| Phương pháp | Loại | Accuracy (Sachs) | SHD | Nguồn |
+| :--- | :--- | :--- | :--- | :--- |
+| PC Algorithm | Constraint-based | ~50-55% | ~17 | Spirtes et al. (2000) |
+| GES | Score-based | ~55% | ~15 | Chickering (2002) |
+| ICA-LiNGAM | Functional | ~55-60% | ~14 | Shimizu et al. (2006) |
+| MMHC | Hybrid | ~55% | ~16 | Tsamardinos et al. (2006) |
+| CAM | Functional (Additive) | ~58% | ~13 | Bühlmann et al. (2014) |
+| NOTEARS | Continuous Opt. | ~60% | > 8 | Zheng et al. (2018) |
+| DAG-GNN | Deep Learning | ~60% | ~19 | Yu et al. (2019) |
+| **CausalFlow** | **Deep Learning (ANM)** | **70.6%** | **5** | Dự án này |
+
+> **Ghi chú:** Các con số của phương pháp khác là giá trị tham khảo từ các bài báo gốc và tổng hợp benchmark (Vowels et al., 2022). Kết quả có thể khác nhau tùy vào cách tiền xử lý và cài đặt tham số. Kết quả của CausalFlow được đo trực tiếp trên code này với tiền xử lý QuantileTransformer + IsolationForest.
 
 ---
 
