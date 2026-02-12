@@ -40,7 +40,7 @@ graph TD
     E --> F[ResBlock 3]
     F --> G[feat]
 
-    D -.- RB
+    E -.- RB
 
     subgraph RB ["Chi tiết mỗi ResBlock"]
         RB1["x"] --> RB2["Linear→LN→GELU→Drop→Linear→LN"]
