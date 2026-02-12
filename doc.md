@@ -43,12 +43,5 @@ Mô hình đã chứng minh được hiệu quả thông qua việc xử lý cá
 *   **SHD (Structural Hamming Distance): 5**.
 *   Vượt trội hơn các phương pháp truyền thống như PC hay GES về khả năng xử lý nhiễu sinh học và tính phi tuyến.
 
-### 3.2. Chỉ số hiệu năng so sánh
-
-| Thuật toán | Xử lý Phi tuyến | Độ chính xác (Sachs) | SHD | Tính ổn định |
-| :--- | :--- | :--- | :--- | :--- |
-| **PC Algorithm** | Kém | ~50-55% | Cao | Thấp |
-| **NOTEARS (Original)** | Trung bình | ~60% | > 8 | Trung bình |
-| **CausalFlow (Ours)** | **Rất tốt (NSF)** | **70.6%** | **5** | **Cao** |
 
 **Tóm tắt**: CausalFlow không chỉ là một thuật toán mà là một giải pháp Deep Learning hoàn chỉnh, có khả năng tự động trích xuất tri thức nhân quả từ dữ liệu thô với độ tin cậy và ứng dụng thực tiễn cao.

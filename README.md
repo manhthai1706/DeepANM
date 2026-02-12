@@ -34,6 +34,14 @@ Hiệu suất được kiểm chứng trên bộ dữ liệu sinh học thực t
 - **SHD (Structural Hamming Distance): 5**.
 - Khả năng xử lý phi tuyến mạnh mẽ, lọc nhiễu hiệu quả bằng Isolation Forest và Quantile Transformation.
 
+### Chỉ số hiệu năng so sánh
+
+| Thuật toán | Xử lý Phi tuyến | Độ chính xác (Sachs) | SHD | Tính ổn định |
+| :--- | :--- | :--- | :--- | :--- |
+| **PC Algorithm** | Kém | ~50-55% | Cao | Thấp |
+| **NOTEARS (Original)** | Trung bình | ~60% | > 8 | Trung bình |
+| **CausalFlow (Ours)** | **Rất tốt (NSF)** | **70.6%** | **5** | **Cao** |
+
 ## Cài đặt
 
 ```bash
