@@ -238,47 +238,66 @@ sequenceDiagram
 
 ## 8. `causalflow.py` — CausalFlow class API
 
+### `__init__`
+
 ```mermaid
 graph TD
-    subgraph Init ["__init__"]
-        A1["CausalFlow(x_dim, lda, data)"] --> A2{data?}
-        A2 -- có --> A3["infer x_dim → tạo Core → fit()"]
-        A2 -- không --> A4["Core = None"]
-    end
-
-    subgraph Fit ["fit()"]
-        B1["fit(X, Y, epochs, lr)"] --> B2{Core?}
-        B2 -- chưa có --> B3["Tạo Core từ X.shape"]
-        B3 --> B4["Trainer.train(X)"]
-        B2 -- đã có --> B4
-    end
-
-    subgraph PredDir ["predict_direction()"]
-        C1["predict_direction(data)"] --> C2{data?}
-        C2 -- có --> C3["ANMMM_cd(data, lda)"]
-        C2 -- không --> C4["So W_dag 0,1 vs 1,0"]
-    end
-
-    subgraph GetDAG ["get_dag_matrix()"]
-        D1["threshold = 0.1"] --> D2["W = W_dag.numpy()"]
-        D2 --> D3["W_bin = abs W > thr"]
-    end
-
-    subgraph GetRes ["get_residuals()"]
-        E1["X"] --> E2["MLP(X) → z"]
-        E2 --> E3["phi → y_pred"]
-        E3 --> E4["res = pnl(X) - y_pred"]
-    end
-
-    subgraph Stab ["check_stability()"]
-        F1["X, n_splits=3"] --> F2["Chia X thành 3 phần"]
-        F2 --> F3["Tính loss mỗi phần"]
-        F3 --> F4["score = std / mean"]
-    end
-
-    subgraph CF ["predict_counterfactual()"]
-        G1["x_orig, y_orig, x_new"] --> G2["pred_orig = GP(x_orig)"]
-        G2 --> G3["pred_new = GP(x_new)"]
-        G3 --> G4["y_cf = y - pred_orig + pred_new"]
-    end
+    A["CausalFlow(x_dim, lda, data)"] --> B{data?}
+    B -- có --> C["infer x_dim → tạo Core → fit()"]
+    B -- không --> D["Core = None, chờ fit sau"]
 ```
+
+### `fit()`
+
+```mermaid
+graph TD
+    A["fit(X, Y, epochs, lr)"] --> B{Core đã tạo?}
+    B -- chưa --> C["Tạo Core từ X.shape"]
+    C --> D["Trainer.train(X)"]
+    B -- rồi --> D
+```
+
+### `predict_direction()`
+
+```mermaid
+graph TD
+    A["predict_direction(data)"] --> B{data?}
+    B -- có --> C["Gọi ANMMM_cd(data, lda)"]
+    B -- không --> D["So W_dag: W 0,1 vs W 1,0"]
+```
+
+### `get_dag_matrix()`
+
+```mermaid
+graph TD
+    A["threshold = 0.1"] --> B["W = W_dag.detach.numpy"]
+    B --> C["W_bin = abs W > threshold"]
+```
+
+### `get_residuals()`
+
+```mermaid
+graph TD
+    A["X"] --> B["MLP(X) → z_soft"]
+    B --> C["phi = RFF_z * RFF_x → y_pred"]
+    C --> D["res = pnl_transform(X) - y_pred"]
+```
+
+### `check_stability()`
+
+```mermaid
+graph TD
+    A["X, n_splits=3"] --> B["Chia X thành 3 phần"]
+    B --> C["Tính loss trên mỗi phần"]
+    C --> D["score = std losses / mean losses"]
+```
+
+### `predict_counterfactual()`
+
+```mermaid
+graph TD
+    A["x_orig, y_orig, x_new"] --> B["pred_orig = GP_head(x_orig, y_orig)"]
+    B --> C["pred_new = GP_head(x_new, y_orig)"]
+    C --> D["y_cf = y_orig - pred_orig + pred_new"]
+```
+
