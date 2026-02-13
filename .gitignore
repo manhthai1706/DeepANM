@@ -44,3 +44,8 @@ plots/
 .vscode/
 .idea/
 .DS_Store
+
+# Jupyter Notebook
+*.ipynb
+.ipynb_checkpoints/
+
