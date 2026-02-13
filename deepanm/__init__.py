@@ -12,6 +12,7 @@ from .models.trainer import DeepANMTrainer
 # Export core components for advanced users
 from .core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
 from .core.hsic import hsic_gam
+from . import datasets
 
 # Backward compatibility alias
 CausalFlow = DeepANM
@@ -26,5 +27,6 @@ __all__ = [
     'CausalFlowTrainer',
     'GPPOMC_lnhsic_Core',
     'FastHSIC',
-    'hsic_gam'
+    'hsic_gam',
+    'datasets'
 ]

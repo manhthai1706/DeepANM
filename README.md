@@ -98,7 +98,7 @@ Hàm `ANMMM_cd(data, lda)` thực hiện quy trình:
 
 ## So sánh với dự án gốc (amber0309)
 
-| Thành phần | amber0309 (Base) | CausalFlow |
+| Thành phần | amber0309 (Base) | DeepANM |
 | :--- | :--- | :--- |
 | Cấu trúc mã | Các script và hàm riêng lẻ | Package phân lớp (`core/`, `models/`) |
 | Backbone | MLP tiêu chuẩn | GRN + 3 ResBlock + LayerNorm + GELU |
@@ -115,7 +115,7 @@ Hàm `ANMMM_cd(data, lda)` thực hiện quy trình:
 ## Cài đặt
 
 ```bash
-pip install git+https://github.com/manhthai1706/CausalFlow.git
+pip install git+https://github.com/manhthai1706/DeepANM.git
 ```
 
 **Yêu cầu:** Python ≥ 3.8, PyTorch ≥ 1.10, scikit-learn ≥ 1.0, numpy, matplotlib.
