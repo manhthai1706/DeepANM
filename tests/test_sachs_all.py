@@ -4,6 +4,8 @@ Tests all 17 known causal edges
 """
 import numpy as np
 import torch
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.ensemble import IsolationForest
 from deepanm import DeepANM

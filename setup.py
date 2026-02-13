@@ -9,7 +9,10 @@ setup(
         "numpy>=1.20.0",
         "scikit-learn>=1.0.0",
         "matplotlib>=3.5.0",
-        "scipy>=1.7.0"
+        "scipy>=1.7.0",
+        "pytest>=7.0.0",
+        "seaborn>=0.12.0",
+        "requests>=2.28.0"
     ],
     license="MIT",
 )
