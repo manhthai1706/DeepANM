@@ -13,17 +13,12 @@ from .models.trainer import DeepANMTrainer
 from .core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
 from .core.hsic import hsic_gam
 
-# Backward compatibility alias
-CausalFlow = DeepANM
-CausalFlowTrainer = DeepANMTrainer
 
 __all__ = [
     'DeepANM',
-    'CausalFlow',
     'ANMMM_cd',
     'ANMMM_clu',
     'DeepANMTrainer',
-    'CausalFlowTrainer',
     'GPPOMC_lnhsic_Core',
     'FastHSIC',
     'hsic_gam'
