@@ -1,5 +1,5 @@
 """
-CausalFlow Core Module
+DeepANM Core Module
 Contains fundamental components for causal discovery
 """
 

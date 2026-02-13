@@ -8,9 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torch.optim as optim
-from causalflow.core.kernels import RBFKernel
-from causalflow.core import mlp
+from deepanm.core.kernels import RBFKernel
+from deepanm.core import mlp
 
 class RFFGPLayer(nn.Module):
     """Random Fourier Features for Sparse GP Approximation (O(N) complexity)"""

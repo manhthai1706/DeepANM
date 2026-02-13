@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.ensemble import IsolationForest
-from causalflow import ANMMM_cd_advanced
+from deepanm import DeepANM
 
 def test_all_sachs_edges():
     print("=" * 70)
@@ -50,10 +50,11 @@ def test_all_sachs_edges():
         clean_mask = iso.fit_predict(combined)
         data_clean = combined[clean_mask == 1]
         
-        # 3. Training with Adaptive LDA
+        # 3. Training using the new Unified Model Pattern
         try:
-            # We testing two LDA levels and picking the more stable decision
-            direction, _ = ANMMM_cd_advanced(data_clean, lda=12.0)
+            # We initialize the model and use it for prediction
+            model = DeepANM(lda=12.0)
+            direction = model.predict_direction(data_clean)
             
             correct = (direction == 1)
             result = "CORRECT" if correct else "WRONG"

@@ -1,23 +1,28 @@
 """
-CausalFlow: Advanced Multivariate Causal Discovery Framework
+DeepANM: Deep Additive Noise Model for Causal Discovery
 """
 
 __version__ = '1.0.0'
 
 # Export main classes to top-level
-from .models.causalflow import CausalFlow
-from .models.analysis import CausalAnalyzer, ANMMM_cd_advanced, ANMMM_clu
-from .models.trainer import CausalFlowTrainer
+from .models.deepanm import DeepANM
+from .models.analysis import ANMMM_cd, ANMMM_clu
+from .models.trainer import DeepANMTrainer
 
 # Export core components for advanced users
 from .core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
 from .core.hsic import hsic_gam
 
+# Backward compatibility alias
+CausalFlow = DeepANM
+CausalFlowTrainer = DeepANMTrainer
+
 __all__ = [
+    'DeepANM',
     'CausalFlow',
-    'CausalAnalyzer',
-    'ANMMM_cd_advanced',
+    'ANMMM_cd',
     'ANMMM_clu',
+    'DeepANMTrainer',
     'CausalFlowTrainer',
     'GPPOMC_lnhsic_Core',
     'FastHSIC',

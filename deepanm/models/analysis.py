@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from sklearn import metrics
 from sklearn.cluster import KMeans
 
-from causalflow.models.causalflow import CausalFlow
-from causalflow.core.hsic import hsic_gam
+from deepanm.models.deepanm import DeepANM
+from deepanm.core.hsic import hsic_gam
 
 def draw_clu(data, label, name):
     ## draw the whole data set
@@ -42,62 +42,7 @@ def draw_clu(data, label, name):
     plt.legend()
     plt.grid(True, alpha=0.2)
 
-class CausalAnalyzer:
-    """
-    Advanced Causal Analysis Suite:
-    1. Invariance Testing (Stability across data splits)
-    2. Counterfactual Generation (What-if analysis)
-    3. Sensitivity Analysis
-    """
-    def __init__(self, model):
-        self.model = model
-
-    def check_invariance(self, X, Y, n_splits=3):
-        """Checks if the learned mechanism remains stable across different data segments"""
-        indices = np.arange(len(X))
-        np.random.shuffle(indices)
-        splits = np.array_split(indices, n_splits)
-        
-        losses = []
-        self.model.eval()
-        with torch.no_grad():
-            for split in splits:
-                xs = torch.from_numpy(X[split]).float().to(self.model.device)
-                ys = torch.from_numpy(Y[split]).float().to(self.model.device)
-                combined = torch.cat([xs, ys], dim=1)
-                total_loss, _, _ = self.model(combined)
-                losses.append(total_loss.item())
-        
-        stability = np.std(losses) / (np.abs(np.mean(losses)) + 1e-8)
-        return stability, losses
-
-    def generate_counterfactual(self, x_orig, y_orig, x_new):
-        """
-        Computes counterfactual using the GP-head for higher precision.
-        """
-        self.model.eval()
-        with torch.no_grad():
-            def get_y_pred(x_val, y_val_for_z):
-                xt = torch.tensor([[x_val]]).float().to(self.model.device)
-                yt = torch.tensor([[y_val_for_z]]).float().to(self.model.device)
-                xy = torch.cat([xt, yt], dim=1)
-                
-                # Get mechanism (z) from MLP
-                out = self.model.core.MLP(xy)
-                z = out['z_soft']
-                
-                # Get prediction from GP head
-                phi = self.model.core.gp_phi_z(z) * self.model.core.gp_phi_x(xt)
-                return self.model.core.linear_head(phi).item()
-
-            y_pred_orig = get_y_pred(x_orig, y_orig)
-            y_pred_new = get_y_pred(x_new, y_orig) # Using original Y to keep the same mechanism
-            
-            # Counterfactual: Y_cf = Y_obs - Prediction(X_orig) + Prediction(X_new)
-            y_cf = y_orig - y_pred_orig + y_pred_new
-            return y_cf
-
-def ANMMM_cd_advanced(data, lda):
+def ANMMM_cd(data, lda):
     """
     Advanced Causal Direction Inference - Fixed Structure Mode
     Forces X->Y and Y->X structures to compare pure independence.
@@ -108,7 +53,7 @@ def ANMMM_cd_advanced(data, lda):
 
     # Test X -> Y
     print("\n[Testing Hypothesis: X --> Y]")
-    cf1 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
+    cf1 = DeepANM(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
     # FORCE Structure: X causes Y (W[0, 1] = 1, others = 0)
     with torch.no_grad():
         mask1 = torch.zeros(2, 2).to(device)
@@ -116,16 +61,15 @@ def ANMMM_cd_advanced(data, lda):
         cf1.core.W_dag.data = mask1
         cf1.core.W_dag.requires_grad = False # Lock structure
         
-    cf1.fit(X, Y, epochs=200, verbose=False) # Increased epochs for better GP fit
-    analyzer1 = CausalAnalyzer(cf1)
-    stab1, _ = analyzer1.check_invariance(X, Y)
+    cf1.fit(X, Y, epochs=200, verbose=False)
     combined1 = np.hstack([X, Y])
+    stab1, _ = cf1.check_stability(combined1)
     res1 = cf1.get_residuals(combined1)
     stat1, _, p1 = hsic_gam(res1[:, 1:2], X) 
 
     # Test Y -> X
     print("[Testing Hypothesis: Y --> X]")
-    cf2 = CausalFlow(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
+    cf2 = DeepANM(x_dim=1, y_dim=1, n_clusters=2, lda=lda, device=device)
     # FORCE Structure: Y causes X (W[1, 0] = 1, others = 0)
     with torch.no_grad():
         mask2 = torch.zeros(2, 2).to(device)
@@ -134,9 +78,8 @@ def ANMMM_cd_advanced(data, lda):
         cf2.core.W_dag.requires_grad = False # Lock structure
         
     cf2.fit(Y, X, epochs=200, verbose=False)
-    analyzer2 = CausalAnalyzer(cf2)
-    stab2, _ = analyzer2.check_invariance(Y, X)
     combined2 = np.hstack([Y, X])
+    stab2, _ = cf2.check_stability(combined2)
     res2 = cf2.get_residuals(combined2)
     stat2, _, p2 = hsic_gam(res2[:, 1:2], Y)
 
@@ -147,21 +90,21 @@ def ANMMM_cd_advanced(data, lda):
     score2 = stat2 * (1.0 + stab2 * 0.5)
     
     if score1 < score2:
-        return 1, analyzer1
+        return 1, cf1
     else:
-        return -1, analyzer2
+        return -1, cf2
 
 def ANMMM_clu(data, label_true, ilda):
-    """Mechanism Clustering using Ultimate GPPOM (End-to-End)"""
+    """Mechanism Clustering using DeepANM (End-to-End)"""
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     X = data[:,0].reshape(-1 ,1)
     Y = data[:,1].reshape(-1 ,1)
     nclu = len(np.unique(label_true))
 
-    # Apply Ultimate GPPOM
+    # Apply DeepANM
     print(f"\n--- End-to-End Clustering (lda={ilda}, clusters={nclu}) ---")
-    cf = CausalFlow(x_dim=1, y_dim=1, n_clusters=nclu, lda=ilda, device=device)
+    cf = DeepANM(x_dim=1, y_dim=1, n_clusters=nclu, lda=ilda, device=device)
     cf.fit(X, Y, epochs=200)
 
     # Extract learned categorical labels directly
@@ -169,7 +112,7 @@ def ANMMM_clu(data, label_true, ilda):
     clu_label = cf.predict_clusters(combined)
 
     ari = metrics.adjusted_rand_score(label_true, clu_label)
-    print(f'\nARI of Ultimate ANM-MM: {ari:.4f}')
+    print(f'\nARI of DeepANM: {ari:.4f}')
 
     # Visualization
     with torch.no_grad():

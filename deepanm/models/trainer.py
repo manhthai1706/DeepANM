@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Training Script for CausalFlow
+Training Script for DeepANM
 Handles model training, validation, and logging
 """
 
@@ -8,12 +8,12 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
-from causalflow.models.causalflow import CausalFlow
+from deepanm.models.deepanm import DeepANM
 
 
-class CausalFlowTrainer:
+class DeepANMTrainer:
     """
-    Trainer class for CausalFlow model
+    Trainer class for DeepANM model
     Handles training loop, optimization, and history tracking
     """
     def __init__(self, model, lr=2e-3, weight_decay=1e-2):
@@ -21,7 +21,7 @@ class CausalFlowTrainer:
         Initialize trainer
         
         Args:
-            model (CausalFlow): The CausalFlow model to train
+            model (DeepANM): The DeepANM model to train
             lr (float): Learning rate
             weight_decay (float): Weight decay for regularization
         """
@@ -35,7 +35,7 @@ class CausalFlowTrainer:
         
     def train(self, X, epochs=200, batch_size=64, verbose=True):
         """
-        Train the CausalFlow model in Multivariate mode
+        Train the DeepANM model in Multivariate mode
         """
         if isinstance(X, np.ndarray):
             X = torch.from_numpy(X).float()
@@ -45,7 +45,7 @@ class CausalFlowTrainer:
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         
         if verbose:
-            print(f">> Training SOTA CausalFlow on {self.model.device}")
+            print(f">> Training DeepANM on {self.model.device}")
             print(f"   Variables: {X.shape[1]}, Samples: {X.shape[0]}")
             print(f"   Features: DAG (NOTEARS) + SplineFlow + VAE Latents")
             print("-" * 60)
@@ -81,13 +81,13 @@ class CausalFlowTrainer:
         return self.history
 
 
-def train_causalflow(X, Y, x_dim, y_dim, n_clusters=2, hidden_dim=64, 
-                     lda=1.0, epochs=200, batch_size=64, lr=2e-3, 
-                     device=None, verbose=True):
+def train_deepanm(X, Y, x_dim, y_dim, n_clusters=2, hidden_dim=64, 
+                   lda=1.0, epochs=200, batch_size=64, lr=2e-3, 
+                   device=None, verbose=True):
     """
-    Convenience function to train a CausalFlow model
+    Convenience function to train a DeepANM model
     """
-    model = CausalFlow(
+    model = DeepANM(
         x_dim=x_dim,
         y_dim=y_dim,
         n_clusters=n_clusters,
@@ -96,14 +96,18 @@ def train_causalflow(X, Y, x_dim, y_dim, n_clusters=2, hidden_dim=64,
         device=device
     )
     
-    trainer = CausalFlowTrainer(model, lr=lr)
+    trainer = DeepANMTrainer(model, lr=lr)
     history = trainer.train(X, Y, epochs=epochs, batch_size=batch_size, verbose=verbose)
     
     return model, trainer, history
 
 
+# Backward compatibility
+CausalFlowTrainer = DeepANMTrainer
+
+
 if __name__ == "__main__":
-    print("CausalFlow Training Script")
+    print("DeepANM Training Script")
     print("=" * 60)
     
     np.random.seed(42)
@@ -114,4 +118,4 @@ if __name__ == "__main__":
     X = np.random.randn(N, x_dim)
     Y = np.random.randn(N, y_dim)
     
-    model, trainer, history = train_causalflow(X, Y, x_dim, y_dim, epochs=50)
+    model, trainer, history = train_deepanm(X, Y, x_dim, y_dim, epochs=50)

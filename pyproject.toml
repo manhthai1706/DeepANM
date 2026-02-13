@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "causalflow"
+name = "deepanm"
 version = "1.0.0"
-description = "An advanced multivariate causal discovery framework using Gaussian Processes and Neural Spline Flows."
+description = "DeepANM: Deep Additive Noise Model for Causal Discovery using Gaussian Processes and Neural Spline Flows."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
@@ -27,4 +27,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["causalflow*"]
+include = ["deepanm*"]

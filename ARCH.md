@@ -1,4 +1,4 @@
-# CausalFlow: Chi tiết Kiến trúc
+# DeepANM: Chi tiết Kiến trúc
 
 Tài liệu mô tả luồng hoạt động bên trong của từng file và sơ đồ tổng thể của hệ thống.
 
@@ -13,7 +13,7 @@ graph TD
         B --> C[IsolationForest]
     end
 
-    C --> D["CausalFlow.fit()"]
+    C --> D["DeepANM.fit()"]
 
     subgraph TRAIN ["Huấn luyện - GPPOMC_lnhsic_Core"]
         D --> E[MLP backbone]
@@ -219,7 +219,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant F as CausalFlow.fit
+    participant F as DeepANM.fit
     participant T as Trainer
     participant C as Core
 
@@ -243,11 +243,11 @@ sequenceDiagram
 
 ---
 
-## 8. `causalflow.py` — CausalFlow class API
+## 8. `DeepANM.py` — DeepANM class API
 
 ```mermaid
 graph TD
-    A["CausalFlow(x_dim, lda, data)"] --> B{data?}
+    A["DeepANM(x_dim, lda, data)"] --> B{data?}
     B -- có --> C["infer x_dim → tạo Core → fit()"]
     B -- không --> D["Core = None"]
     C --> E["Model đã train"]

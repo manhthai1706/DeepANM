@@ -13,7 +13,7 @@ from sklearn.ensemble import IsolationForest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.data_gen import gen_D
-from causalflow import ANMMM_cd_advanced
+from deepanm import ANMMM_cd
 
 def test_synthetic_direction():
     print("=" * 70)
@@ -47,7 +47,7 @@ def test_synthetic_direction():
     print("[Step 3] Running Causal Discovery...")
     try:
         # X is data[:,0], Y is data[:,1]. We expect direction = 1 (X->Y)
-        direction, _ = ANMMM_cd_advanced(data_clean, lda=12.0)
+        direction, _ = ANMMM_cd(data_clean, lda=12.0)
         
         print("\n" + "-" * 40)
         if direction == 1:

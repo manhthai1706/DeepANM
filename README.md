@@ -1,13 +1,13 @@
-# CausalFlow
+# DeepANM
 
 [![Architecture](https://img.shields.io/badge/Kiến_trúc-Chi_tiết-blueviolet?style=flat-square)](ARCH.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
 ## Tổng quan
 
-CausalFlow là một thư viện Python dùng để xác định mối quan hệ nhân quả từ dữ liệu quan sát. Dự án được phát triển dựa trên framework ANM-MM (Additive Noise Model - Mixture Model) của [amber0309](https://github.com/amber0309/ANM-MM), với các thay đổi chính ở phần backbone mạng nơ-ron và cách tổ chức mã nguồn.
+DeepANM (Deep Additive Noise Model) là một thư viện Python dùng để xác định mối quan hệ nhân quả từ dữ liệu quan sát. Dự án được phát triển dựa trên framework ANM-MM (Additive Noise Model - Mixture Model) của [amber0309](https://github.com/amber0309/ANM-MM), với các thay đổi chính ở phần backbone mạng nơ-ron và cách tổ chức mã nguồn.
 
-Mục tiêu của dự án là gói gọn toàn bộ quy trình khám phá nhân quả — từ tiền xử lý dữ liệu, huấn luyện mô hình đến trích xuất đồ thị — vào trong một class `CausalFlow` duy nhất, thay vì phải gọi nhiều hàm rời rạc như bản gốc.
+Mục tiêu của dự án là gói gọn toàn bộ quy trình khám phá nhân quả — từ tiền xử lý dữ liệu, huấn luyện mô hình đến trích xuất đồ thị — vào trong một class `DeepANM` duy nhất, thay vì phải gọi nhiều hàm rời rạc như bản gốc.
 
 ## Giới thiệu
 
@@ -17,27 +17,27 @@ Khám phá nhân quả (Causal Discovery) là bài toán xác định quan hệ 
 
 ### Hướng tiếp cận
 
-CausalFlow sử dụng mô hình nhiễu cộng (Additive Noise Model - ANM): nếu dữ liệu được sinh từ cơ chế `Y = f(X) + N` với `N` độc lập thống kê với `X`, thì kết luận X là nguyên nhân của Y. Mô hình dùng mạng nơ-ron để xấp xỉ hàm `f`, sau đó kiểm tra tính độc lập giữa phần dư và biến đầu vào bằng HSIC.
+DeepANM sử dụng mô hình nhiễu cộng (Additive Noise Model - ANM): nếu dữ liệu được sinh từ cơ chế `Y = f(X) + N` với `N` độc lập thống kê với `X`, thì kết luận X là nguyên nhân của Y. Mô hình dùng mạng nơ-ron để xấp xỉ hàm `f`, sau đó kiểm tra tính độc lập giữa phần dư và biến đầu vào bằng HSIC.
 
 Đối với bài toán song biến (2 biến), hệ thống huấn luyện hai mô hình riêng biệt: một cho giả thuyết X→Y và một cho giả thuyết Y→X. Mô hình nào cho phần dư độc lập hơn với biến nguyên nhân (HSIC thấp hơn) thì giả thuyết đó được chấp nhận. Đây là cơ chế Fixed-Structure Hypothesis Testing.
 
 ### Mở rộng hỗn hợp (Mixture Model)
 
-Trong thực tế, mối quan hệ giữa X và Y có thể do nhiều cơ chế khác nhau tạo ra (ví dụ: cùng là mối quan hệ giữa thuốc và tác dụng, nhưng cơ chế khác nhau ở từng nhóm bệnh nhân). CausalFlow sử dụng một VAE head kết hợp với Gumbel-Softmax để phân cụm các cơ chế này một cách khả vi (differentiable), cho phép mô hình xử lý dữ liệu hỗn hợp mà không cần tách thủ công.
+Trong thực tế, mối quan hệ giữa X và Y có thể do nhiều cơ chế khác nhau tạo ra (ví dụ: cùng là mối quan hệ giữa thuốc và tác dụng, nhưng cơ chế khác nhau ở từng nhóm bệnh nhân). DeepANM sử dụng một VAE head kết hợp với Gumbel-Softmax để phân cụm các cơ chế này một cách khả vi (differentiable), cho phép mô hình xử lý dữ liệu hỗn hợp mà không cần tách thủ công.
 
 ---
 
 ## Cấu trúc mã nguồn
 
 ```
-causalflow/
+deepanm/
 ├── core/                       # Các thành phần tính toán cốt lõi
 │   ├── mlp.py                  # Backbone mạng nơ-ron (ResNet, GRN, Attention, NSF, VAE)
 │   ├── gppom_hsic.py           # Module tối ưu hóa DAG + hàm mất mát tổng hợp
 │   ├── hsic.py                 # Triển khai HSIC (Gamma Approximation & Permutation Test)
 │   └── kernels.py              # Thư viện kernel (RBF, Matern, Rational Quadratic,...)
 ├── models/                     # Giao diện người dùng
-│   ├── causalflow.py           # Class CausalFlow chính (fit, predict_direction,...)
+│   ├── deepanm.py              # Class DeepANM chính (fit, predict_direction,...)
 │   ├── trainer.py              # Vòng lặp huấn luyện (AdamW, temperature annealing)
 │   └── analysis.py             # Hàm ANMMM_cd (Hypothesis Testing) và ANMMM_clu (Clustering)
 ```
@@ -124,10 +124,10 @@ pip install git+https://github.com/manhthai1706/CausalFlow.git
 
 ### Xác định hướng nhân quả (song biến)
 ```python
-from causalflow import CausalFlow
+from deepanm import DeepANM
 
 # data: numpy array shape [n_samples, 2]
-model = CausalFlow(lda=12.0)
+model = DeepANM(lda=12.0)
 direction = model.predict_direction(data)
 # direction = 1: cột 0 gây ra cột 1 (X→Y)
 # direction = -1: cột 1 gây ra cột 0 (Y→X)
@@ -136,7 +136,7 @@ direction = model.predict_direction(data)
 ### Huấn luyện đa biến và trích xuất DAG
 ```python
 # X: numpy array shape [n_samples, n_variables]
-model = CausalFlow(data=X, epochs=200)
+model = DeepANM(data=X, epochs=200)
 
 # Lấy ma trận kề
 W_raw, W_binary = model.get_dag_matrix(threshold=0.1)
@@ -178,9 +178,9 @@ Bảng dưới đây tổng hợp kết quả từ các bài báo gốc và các
 | CAM | Functional (Additive) | ~58% | ~13 | Bühlmann et al. (2014) |
 | NOTEARS | Continuous Opt. | ~60% | > 8 | Zheng et al. (2018) |
 | DAG-GNN | Deep Learning | ~60% | ~19 | Yu et al. (2019) |
-| **CausalFlow** | **Deep Learning (ANM)** | **70.6%** | **5** | Dự án này |
+| **DeepANM** | **Deep Learning (ANM)** | **70.6%** | **5** | Dự án này |
 
-> **Ghi chú:** Các con số của phương pháp khác là giá trị tham khảo từ các bài báo gốc và tổng hợp benchmark (Vowels et al., 2022). Kết quả có thể khác nhau tùy vào cách tiền xử lý và cài đặt tham số. Kết quả của CausalFlow được đo trực tiếp trên code này với tiền xử lý QuantileTransformer + IsolationForest.
+> **Ghi chú:** Các con số của phương pháp khác là giá trị tham khảo từ các bài báo gốc và tổng hợp benchmark (Vowels et al., 2022). Kết quả có thể khác nhau tùy vào cách tiền xử lý và cài đặt tham số. Kết quả của DeepANM được đo trực tiếp trên code này với tiền xử lý QuantileTransformer + IsolationForest.
 
 ---
 
