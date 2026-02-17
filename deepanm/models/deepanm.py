@@ -82,6 +82,10 @@ class DeepANM(nn.Module):
             out = self.core.MLP(X) # Pass to MLP / Qua mạng MLP
             return out['z_soft'].argmax(dim=1).cpu().numpy() # Predicted labels / Nhãn dự báo
 
+    def forward(self, x, temperature=1.0):
+        """Forward pass through the core engine / Lan truyền tiến qua bộ xử lý cốt lõi"""
+        return self.core(x, temperature=temperature)
+
     def get_residuals(self, X, use_pnl=True):
         """Compute residuals (Noise) / Tính toán phần dư (Nhiễu)"""
         self.eval()
