@@ -11,7 +11,7 @@ class TubingenLoader:
     """
     BASE_URL = "https://webdav.tuebingen.mpg.de/cause-effect"
 
-    def __init__(self, target_dir="data/tubingen"):
+    def __init__(self, target_dir="datasets/tubingen"):
         self.target_dir = target_dir
         if not os.path.exists(target_dir):
             os.makedirs(target_dir, exist_ok=True)

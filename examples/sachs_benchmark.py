@@ -16,9 +16,9 @@ def test_all_sachs_edges():
     print("=" * 70)
     
     # Load data
-    data = np.load('data/sachs/continuous/data1.npy')
-    headers = np.load('data/sachs/sachs-header.npy')
-    dag = np.load('data/sachs/continuous/DAG1.npy')
+    data = np.load('datasets/sachs/continuous/data1.npy')
+    headers = np.load('datasets/sachs/sachs-header.npy')
+    dag = np.load('datasets/sachs/continuous/DAG1.npy')
     
     # Extract all true causal edges from DAG
     true_edges = []
