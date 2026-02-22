@@ -33,7 +33,6 @@ env/
 .env
 
 # Data and results
-data/sachs/
 result/
 plots/
 *.pt
