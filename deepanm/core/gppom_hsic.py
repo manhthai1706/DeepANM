@@ -12,46 +12,64 @@ from deepanm.core.kernels import RBFKernel
 from deepanm.core import mlp
 
 class RFFGPLayer(nn.Module):
-    """Random Fourier Features for GP / Đặc trưng Fourier ngẫu nhiên cho GP"""
-    def __init__(self, input_dim, n_features=256):
+    """
+    Đặc trưng Fourier Ngẫu nhiên (Random Fourier Features - RFF) xấp xỉ Gaussian Kernel.
+    Tối giản hóa quy trình chuyển tensor vào GPU/CPU, chống suy hao tốc độ (Bottleneck).
+    """
+    def __init__(self, input_dim, n_features=256, ARD=False):
         super().__init__()
-        self.n_features = n_features # Num features / Số lượng đặc trưng
-        # Fixed random weights / Trọng số ngẫu nhiên cố định
+        self.n_features = n_features
+        # Cố định ngẫu nhiên tần số W và góc pha b ngay trong bộ đệm (mặc định sẽ chạy cùng device)
         self.register_buffer("W", torch.randn(input_dim, n_features))
-        # Fixed random bias / Độ chệch ngẫu nhiên cố định
         self.register_buffer("b", torch.rand(n_features) * 2 * np.pi)
-        self.log_alpha = nn.Parameter(torch.zeros(1)) # Scale param / Tham số tỉ lệ
-        self.log_gamma = nn.Parameter(torch.zeros(1)) # Bandwidth param / Tham số độ rộng
+        
+        self.log_alpha = nn.Parameter(torch.zeros(1))
+        # Automatic Relevance Determination (ARD): Chiều nào quan trọng sẽ tự thu phóng riêng biệt
+        self.log_gamma = nn.Parameter(torch.zeros(input_dim if ARD else 1))
+        
+        # Tham số nhân hằng số tính trước, không sử dụng Tensor khai báo động tránh tốn overhead
+        self.scale = np.sqrt(2.0 / n_features)
 
     def forward(self, x):
-        gamma = torch.exp(self.log_gamma) # Bandwidth / Độ rộng
-        alpha = torch.exp(self.log_alpha) # Scale / Tỉ lệ
-        projection = (x * gamma) @ self.W + self.b # Random projection / Chiếu ngẫu nhiên
-        # Cosine transform (RFF formula) / Biến đổi cosin (Công thức RFF)
-        phi = torch.sqrt(torch.tensor(2.0 / self.n_features)) * torch.cos(projection)
-        return phi * torch.sqrt(alpha) # Final features / Đặc trưng cuối cùng
+        gamma = torch.exp(self.log_gamma)
+        alpha = torch.exp(self.log_alpha)
+        
+        # Phép chiếu dữ liệu thu phóng vào không gian ngẫu nhiên
+        projection = (x * gamma) @ self.W + self.b
+        
+        # Ánh xạ cosin biến dữ liệu tĩnh thành vô hạn chiều
+        phi = self.scale * torch.cos(projection)
+        return phi * torch.sqrt(alpha)
 
 class FastHSIC(nn.Module):
-    """O(N) Fast HSIC using RFF / HSIC tốc độ cao O(N) thông qua RFF"""
+    """
+    Kiểm định Độc lập Siêu Tốc (O(d * N) thay vì O(N^2)). 
+    Tuyệt đối bắt buộc dùng làm Loss Function cho batch data liên tục.
+    Phiên bản này được trang bị ARD để phát hiện chiều phụ thuộc tốt hơn.
+    """
     def __init__(self, x_dim, z_dim, n_features=128):
         super().__init__()
-        self.phi_x = RFFGPLayer(x_dim, n_features) # Features for X / Đặc trưng cho X
-        self.phi_z = RFFGPLayer(z_dim, n_features) # Features for Z / Đặc trưng cho Z
+        # ARD sẽ giúp HSIC hiểu mô hình nhiễu phức đa chiều
+        self.phi_x = RFFGPLayer(x_dim, n_features, ARD=True)
+        self.phi_z = RFFGPLayer(z_dim, n_features, ARD=True)
 
     def forward(self, X, Z):
-        n = X.shape[0] # Num samples / Số lượng mẫu
-        if n < 2: return torch.tensor(0.0, device=X.device) # Fallback / Trường hợp lỗi
+        n = X.shape[0]
+        if n < 2: return torch.tensor(0.0, device=X.device)
         
-        feat_x = self.phi_x(X) # X features / Đặc trưng X
-        feat_z = self.phi_z(Z) # Z features / Đặc trưng Z
+        # 1. Trích xuất lưới Fourier ngẫu nhiên
+        feat_x = self.phi_x(X)
+        feat_z = self.phi_z(Z)
         
-        # Center features / Chuẩn hóa tâm đặc trưng
+        # 2. Centering Features (Tương đương việc chuẩn hóa tâm ma trận K nhưng siêu nhanh qua mean)
         feat_x = feat_x - feat_x.mean(dim=0, keepdim=True)
         feat_z = feat_z - feat_z.mean(dim=0, keepdim=True)
         
-        # Matrix covariance sum / Tổng hiệp phương sai ma trận
+        # 3. Tính toán Hiệp phương sai chéo C_xz
         covariance = (feat_x.T @ feat_z) / (n - 1)
-        return torch.sum(covariance**2) # HSIC proxy / Chỉ số HSIC đại diện
+        
+        # 4. Trả về bình phương chuẩn Frobenius (Chính là xấp xỉ tuyến tính của Loss HSIC RBF)
+        return torch.sum(covariance**2)
 
 class GPPOMC_lnhsic_Core(nn.Module):
     """DeepANM Core Logic / Logic cốt lõi của DeepANM"""
@@ -61,8 +79,11 @@ class GPPOMC_lnhsic_Core(nn.Module):
         self.device = device # Device / Thiết bị
         self.d = x_dim + y_dim # Total vars / Tổng số biến
         
-        # Learnable Adjacency (DAG NOTEARS) / Ma trận kề học được
-        self.W_dag = nn.Parameter(torch.zeros(self.d, self.d))
+        # Learnable Adjacency (DAG NOTEARS) / Ma trận kề học được, khởi tạo phân phối U(-0.01, 0.01) để phá vỡ tính đối xứng
+        self.W_dag = nn.Parameter(torch.empty(self.d, self.d).uniform_(-0.01, 0.01))
+        
+        # Mask bảo vệ cấu trúc (Cấm Self-loop và cho phép thêm luật Exogenous Prior)
+        self.register_buffer('constraint_mask', 1 - torch.eye(self.d, device=device))
         
         # Backbone MLP / Khung mạng MLP
         self.MLP = mlp.MLP(input_dim=self.d, hidden_dim=hidden_dim, 
@@ -76,39 +97,63 @@ class GPPOMC_lnhsic_Core(nn.Module):
         self.pnl_hsic = FastHSIC(self.d, self.d, n_features=128) # PNL noise HSIC / HSIC nhiễu PNL
 
     def get_dag_penalty(self):
-        """NOTEARS acyclicity constraint h(W) / Ràng buộc không chu trình h(W)"""
-        W_sq = self.W_dag * self.W_dag # Squared weights / Bình phương trọng số
-        E = torch.matrix_exp(W_sq) # Matrix exponential / Expo ma trận
-        h = torch.trace(E) - self.d # Trace minus d / Vết trừ cho d
-        return h # Penalty score / Điểm phạt h(W)
+        """
+        NOTEARS tính điểm bằng h(W) cực tiểu chống chu trình.
+        """
+        # Áp dụng Mask loại trừ đường chéo và các ràng buộc tiên nghiệm (nếu có)
+        W_dag_masked = self.W_dag * self.constraint_mask
+        
+        # Ràng buộc chống chu kỳ h(W) = tr(e^(W \circ W)) - d (Sử dụng Hadamard product chuẩn)
+        W_sq = W_dag_masked * W_dag_masked
+        E = torch.matrix_exp(W_sq)
+        h = torch.trace(E) - self.d
+        
+        return h
 
     def forward(self, batch_data, temperature=1.0):
-        # Pass through MLP / Đi qua MLP
-        out = self.MLP(batch_data, temperature=temperature)
+        # Thiết luật A_ii = 0 (Bắt buộc không có Self-Loop cho DAG) và Cấm ngược chiểu vào Exogenous
+        W_dag_masked = self.W_dag * self.constraint_mask
+        
+        # Mask inputs with DAG matrix / Che đầu vào bằng ma trận DAG (Chắc chắn loại bỏ đường chéo)
+        masked_input = batch_data @ W_dag_masked
+        
+        # Pass qua MLP với dữ liệu đã được DAG-masked
+        out = self.MLP(masked_input, temperature=temperature)
         z_soft, kl_loss = out['z_soft'], out['kl_loss']
         
-        # Mask inputs with DAG matrix / Che đầu vào bằng ma trận DAG
-        masked_input = batch_data @ torch.abs(self.W_dag)
+        # Chuyển Z và X qua lưới đặc trưng Gaussian Process (GP) để tìm tương quan ẩn
+        phi = self.gp_phi_z(z_soft) * self.gp_phi_x(masked_input) # X đã được filter bởi graph liên hệ
+        y_pred_gp = self.linear_head(phi) + out['mu'] # Hợp nhất Nonlinear (GP) + Linear Baseline (mu)
         
-        # Predict using Z (mechanism) and masked X / Dự báo từ Z và X đã lọc
-        phi = self.gp_phi_z(z_soft) * self.gp_phi_x(masked_input)
-        y_pred_gp = self.linear_head(phi) # GP prediction / Dự báo từ GP
+        loss_dag = self.get_dag_penalty()
         
-        loss_dag = self.get_dag_penalty() # DAG score / Ràng buộc DAG
-        loss_reg = F.mse_loss(y_pred_gp, batch_data) # Regression MSE / Sai số hồi quy
+        # Lỗi MSE Hồi Quy Cấu Trúc
+        loss_reg = F.mse_loss(y_pred_gp, batch_data)
         
-        # Independence for PNL / Tính độc lập cho PNL
-        h_y = self.MLP.pnl_transform(batch_data) # Transform data / Biến đổi dữ liệu
-        res_pnl = h_y - y_pred_gp # Residuals / Phần dư
-        loss_hsic_pnl = self.pnl_hsic(batch_data, res_pnl) # HSIC test / Kiểm định HSIC
+        # Đoạn tính HSIC cho Noise (Kiểm định độc lập: N_y độc lập hoàn toàn với X)
+        h_y = self.MLP.pnl_transform(batch_data)  # g(Y)
+        res_pnl = h_y - y_pred_gp                 # Nhiễu ước tính N = g(Y) - f(X)
         
-        loss_hsic_clu = self.fast_hsic(batch_data, z_soft) # Cluster mapping / Ánh xạ cụm
+        # Ràng buộc độc lập: Hàm HSIC đánh giá độc lập giữa "nhiễu" và "nguyên nhân đầu vào"
+        loss_hsic_pnl = self.pnl_hsic(masked_input, res_pnl)
         
-        # Composite Loss / Hàm mất mát tổng hợp
-        total_loss = (loss_reg + 
-                      2.0 * loss_dag + # DAG Constraint / Ràng buộc DAG
-                      self.lda * torch.log(loss_hsic_clu + 1e-8) + # Cluster HSIC / Tối ưu phân cụm
-                      3.0 * torch.log(loss_hsic_pnl + 1e-8) + # Noise HSIC / Tối ưu nhiễu
-                      0.2 * kl_loss) # VAE Latent / Ràng buộc VAE
+        # Ràng buộc cơ chế: Cơ chế Z (z_soft) phải phụ thuộc chặt chẽ với dữ liệu X
+        loss_hsic_clu = self.fast_hsic(batch_data, z_soft)
         
-        return total_loss, loss_reg, loss_hsic_clu # Return all / Trả về tất cả
+        # L1 Regularization để Graph nhân quả thưa thớt (Sparse) có thể diễn giải được
+        l1_loss = torch.sum(torch.abs(W_dag_masked))
+        
+        # Log-Likelihood dựa trên mô hình Nhiễu được học (Gaussian hoặc SplineFlow)
+        # Giúp đánh giá BIC (Bayesian Information Criterion)
+        log_prob = out.get('log_prob_gaussian', torch.zeros_like(kl_loss))
+        loss_nll = -torch.mean(log_prob) 
+        
+        # Hàm loss gốc (Chưa có phạt Ràng buộc DAG - Sẽ được Trainer gánh bởi ALM)
+        base_loss = (loss_reg + 
+                     loss_nll * 0.01 + # Phụ trợ NLL Error Fit
+                     self.lda * loss_hsic_clu + 
+                     self.lda * loss_hsic_pnl + 
+                     0.01 * l1_loss + # Giảm L1 xuống mức 0.01 để model tự do học core graph
+                     0.1 * kl_loss) # VAE Latent / Ràng buộc VAE
+        
+        return base_loss, loss_reg, loss_hsic_clu, loss_nll # Return all / Trả về tất cả

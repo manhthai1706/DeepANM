@@ -60,18 +60,41 @@ class DeepANM(nn.Module):
             self.x_dim = X_all.shape[1]
             self.core = GPPOMC_lnhsic_Core(self.x_dim, self.y_dim, self.n_clusters, 
                                           self.hidden_dim, self.lda, self.device)
+            if hasattr(self, 'exog_indices') and self.exog_indices is not None:
+                self.set_exogenous(self.exog_indices)
             self.to(self.device)
 
         self.trainer = DeepANMTrainer(self, lr=lr) # Create trainer / Tạo bộ huấn luyện
         self.history = self.trainer.train(X_all, epochs=epochs, batch_size=batch_size, verbose=verbose)
         return self.history # Training log / Nhật ký huấn luyện
         
-    def get_dag_matrix(self, threshold=0.1):
-        """Get adjacency matrix / Lấy ma trận kề DAG"""
+    def get_dag_matrix(self, threshold=0.1, X=None):
+        """Get adjacency matrix / Lấy ma trận kề DAG. Nếu truyền vào X, ta sẽ dùng thuật toán Neural ATE (Jacobian) để đo tác động thật"""
         with torch.no_grad():
-            W = self.core.W_dag.detach().cpu().numpy() # Raw weights / Trọng số thô
-            W_bin = (np.abs(W) > threshold).astype(float) # Binary mask / Mặt nạ nhị phân
-            return W, W_bin # Returns both / Trả về cả hai
+            W_dag_masked = self.core.W_dag * self.core.constraint_mask
+            W = W_dag_masked.detach().cpu().numpy() # Mảng W cơ bản
+            
+            if X is not None:
+                # Ứng dụng ATE vào Khám phá toàn cục 
+                ATE_matrix = self.core.MLP.get_global_ate_matrix(X, W_dag=W_dag_masked)
+                ATE_np = ATE_matrix.cpu().numpy()
+                
+                # Biến i tác động lên j => cần Phép AND giữa Topological W_dag_MASK (Logic đồ thị) và ATE >= threshold
+                # Bởi vì Neural Net luôn có ATE nhiễu rò rỉ, ta chỉ xác nhận nó là Cạnh nếu W_dag của NOTEARS đã mở cổng đó.
+                W_bin = ((np.abs(W) > threshold) & (np.abs(ATE_np) > 1e-4)).astype(float)
+                
+                return ATE_np, W_bin # Xuất Mảng tác động Causal ATE Matrix đại diện cho W_raw
+            else:
+                W_bin = (np.abs(W) > threshold).astype(float) 
+                return W, W_bin # Returns both / Trả về cả hai
+
+    def set_exogenous(self, exog_indices):
+        """Đánh dấu các biến thuộc nhóm ngoại sinh (Exogenous), cấm nhận cạnh hướng vào."""
+        self.exog_indices = exog_indices
+        if self.core is not None:
+            # Set cột tại index về 0 (đóng mọi input/parent vào biến này)
+            for idx in exog_indices:
+                self.core.constraint_mask[:, idx] = 0.0
     
     def predict_clusters(self, X):
         """Map points to mechanisms / Phân điểm vào các cụm cơ chế"""
@@ -82,6 +105,38 @@ class DeepANM(nn.Module):
             out = self.core.MLP(X) # Pass to MLP / Qua mạng MLP
             return out['z_soft'].argmax(dim=1).cpu().numpy() # Predicted labels / Nhãn dự báo
 
+    def fit_bootstrap(self, X, n_bootstraps=5, threshold=0.015, epochs=250, batch_size=64, lr=5e-3, verbose=True):
+        """Train DeepANM using Bootstrap Stability Selection / Huấn luyện DeepANM với Bootstrap để tìm cơ chế vững"""
+        if isinstance(X, torch.Tensor):
+            X_numpy = X.cpu().numpy()
+        else:
+            X_numpy = X
+            
+        n_samples, n_vars = X_numpy.shape
+        self.aggregated_W = np.zeros((n_vars, n_vars))
+        self.aggregated_bin = np.zeros((n_vars, n_vars))
+        
+        for b in range(n_bootstraps):
+            if verbose: print(f"[DeepANM Bootstrap] Đang tiến hành Re-sampling lấy mẫu và mô phỏng vũ trụ {b+1}/{n_bootstraps}...")
+            
+            # Re-sampling có hoàn lại (mô phỏng thế giới song song)
+            indices = np.random.choice(n_samples, n_samples, replace=True)
+            boot_data = X_numpy[indices]
+            
+            # Tái tạo hoàn toàn Core Engine để không Overfit Prior
+            self.core = None 
+            self.fit(boot_data, epochs=epochs, batch_size=batch_size, lr=lr, verbose=False)
+            
+            # Khởi chạy phân tích ATE Matrix (Global Discovery) bằng cách truyền boot_data vào
+            W_raw, W_bin = self.get_dag_matrix(threshold=threshold, X=boot_data)
+            self.aggregated_W += W_raw
+            self.aggregated_bin += W_bin
+            
+        prob_matrix = self.aggregated_bin / n_bootstraps
+        avg_weight_matrix = self.aggregated_W / n_bootstraps
+        
+        return prob_matrix, avg_weight_matrix
+
     def forward(self, x, temperature=1.0):
         """Forward pass through the core engine / Lan truyền tiến qua bộ xử lý cốt lõi"""
         return self.core(x, temperature=temperature)
@@ -89,64 +144,80 @@ class DeepANM(nn.Module):
     def get_residuals(self, X, use_pnl=True):
         """Compute residuals (Noise) / Tính toán phần dư (Nhiễu)"""
         self.eval()
-        if isinstance(X, np.ndarray): X = torch.from_numpy(X).float()
+        if not torch.is_tensor(X): 
+            X = torch.as_tensor(X, dtype=torch.float32)
+        
         with torch.no_grad():
             X = X.to(self.device)
             out = self.core.MLP(X)
-            z = out['z_soft'] # Get cluster soft labels / Lấy nhãn cụm mềm
-            masked_input = X @ torch.abs(self.core.W_dag) # Structural focus / Tập trung cấu trúc
-            phi = self.core.gp_phi_z(z) * self.core.gp_phi_x(masked_input) # Latent feature / Đặc trưng ẩn
-            y_pred = self.core.linear_head(phi) # Prediction / Dự báo
-            # Subtraction for noise / Phép trừ tính nhiễu
-            residuals = (self.core.MLP.pnl_transform(X) if use_pnl else X) - y_pred
-            return residuals.cpu().numpy() # Residuals / Phần dư
+            
+            # Áp dụng chuẩn Masking đã tối ưu từ Core Constraint
+            W_dag_masked = self.core.W_dag * self.core.constraint_mask
+            masked_input = X @ torch.abs(W_dag_masked)
+            
+            phi = self.core.gp_phi_z(out['z_soft']) * self.core.gp_phi_x(masked_input)
+            y_pred = self.core.linear_head(phi)
+            
+            # Tính phần dư theo phương trình PNL
+            h_y = self.core.MLP.pnl_transform(X) if use_pnl else X
+            residuals = h_y - y_pred
+            
+            return residuals.cpu().numpy()
 
     def check_stability(self, X, n_splits=3):
         """Check mechanism stability / Kiểm tra sự ổn định cơ chế"""
-        if isinstance(X, np.ndarray): X = torch.from_numpy(X).float()
-        indices = np.arange(len(X))
-        np.random.shuffle(indices) # Shuffle / Xáo trộn
-        splits = np.array_split(indices, n_splits) # Split segments / Chia phân đoạn
+        if not torch.is_tensor(X): 
+            X = torch.as_tensor(X, dtype=torch.float32)
+            
+        n_samples = X.shape[0]
+        # Xáo trộn index trên RAM nhẹ thay vì chia và copy  tensor
+        indices = torch.randperm(n_samples)
+        splits = torch.tensor_split(indices, n_splits)
         
         losses = []
         self.eval()
         with torch.no_grad():
+            X_dev = X.to(self.device) # Đưa toàn bộ lên Device 1 lần duy nhất
             for split in splits:
-                batch_x = X[split].to(self.device)
-                total_loss, _, _ = self.core(batch_x) # Compute loss / Tính mất mát
+                batch_x = X_dev[split]
+                total_loss, _, _ = self.core(batch_x)
                 losses.append(total_loss.item())
         
-        stability = np.std(losses) / (np.abs(np.mean(losses)) + 1e-8) # Variation ratio / Tỉ lệ biến thiên
-        return stability, losses # Lower is better / Thấp hơn là tốt hơn
+        losses = np.array(losses)
+        stability = np.std(losses) / (np.abs(np.mean(losses)) + 1e-8)
+        return stability, losses
 
     def predict_counterfactual(self, x_orig, y_orig, x_new):
         """Counterfactual inference / Suy luận phản thực tế"""
         self.eval()
         with torch.no_grad():
             def get_y_pred(x_val, y_val_for_z):
-                # Prepare tensors / Chuẩn bị tensor
-                xt = torch.tensor([[x_val]]).float().to(self.device)
-                yt = torch.tensor([[y_val_for_z]]).float().to(self.device)
+                # Prepare tensors / Chuẩn bị tensor (Tránh tạo node đạo hàm)
+                xt = torch.tensor([[x_val]], dtype=torch.float32, device=self.device)
+                yt = torch.tensor([[y_val_for_z]], dtype=torch.float32, device=self.device)
                 xy = torch.cat([xt, yt], dim=1)
-                z = self.core.MLP(xy)['z_soft'] # Find mechanism / Tìm cơ chế
-                phi = self.core.gp_phi_z(z) * self.core.gp_phi_x(xt) # GP features / Đặc trưng GP
-                return self.core.linear_head(phi).item() # GP pred / Dự báo GP
+                
+                z = self.core.MLP(xy)['z_soft']
+                
+                # Áp dụng đúng công thức Masking để đảm bảo tính toán đồng nhất
+                W_dag_masked = self.core.W_dag * self.core.constraint_mask
+                masked_input = xy @ torch.abs(W_dag_masked)
+                
+                phi = self.core.gp_phi_z(z) * self.core.gp_phi_x(masked_input)
+                return self.core.linear_head(phi).item()
 
-            y_pred_orig = get_y_pred(x_orig, y_orig) # Pred at original / Dự báo ở gốc
-            y_pred_new = get_y_pred(x_new, y_orig) # Pred at counterfactual / Dự báo phản thực tế
+            y_pred_orig = get_y_pred(x_orig, y_orig)
+            y_pred_new = get_y_pred(x_new, y_orig)
             
-            y_cf = y_orig - y_pred_orig + y_pred_new # Abduction-Action-Prediction / Lý giải-Can thiệp-Dự báo
+            y_cf = y_orig - y_pred_orig + y_pred_new
             return y_cf
 
-    def predict_direction(self, data=None, lda=None):
-        """Predict causal direction / Dự báo hướng nhân quả"""
-        if data is None: # Use learned DAG weights / Dùng trọng số DAG đã học
-            W, _ = self.get_dag_matrix()
-            return 1 if W[0, 1] > W[1, 0] else -1
-            
-        # Hypothesis testing logic / Logic kiểm định giả thuyết
-        if lda is None: lda = self.lda
-        from deepanm.models.analysis import ANMMM_cd
-        direction, _ = ANMMM_cd(data, lda=lda) # Run full analysis / Chạy phân tích đầy đủ
-        return direction
+    def estimate_ate(self, X_control, X_treatment):
+        """Wrapper tính toán Average Treatment Effect cho người dùng."""
+        return self.core.MLP.estimate_ate(X_control, X_treatment)
+
+    def predict_direction(self, data=None):
+        """Predict causal direction based on DAG weights for 2-variable systems / Dự báo hướng nhân quả song biến"""
+        W, _ = self.get_dag_matrix(X=data)
+        return 1 if W[0, 1] > W[1, 0] else -1
 

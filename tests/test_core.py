@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import pytest
 from deepanm.core.mlp import MLP
-from deepanm.core.hsic import hsic_gam
 from deepanm.core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
 from deepanm.models.deepanm import DeepANM
 
@@ -24,15 +23,7 @@ def test_mlp_shapes():
     # Probabilities should sum to 1 / Tổng xác suất phải bằng 1
     assert torch.allclose(out['z_soft'].sum(dim=1), torch.ones(batch_size))
 
-def test_hsic_consistency():
-    """Verify HSIC identifies independence / Kiểm tra tính độc lập của HSIC"""
-    n = 200 # Num samples / Số lượng mẫu
-    x = np.random.randn(n, 1) # Independent X / Biến X độc lập
-    y = np.random.randn(n, 1) # Independent Y / Biến Y độc lập (không phụ thuộc X)
-    
-    stat, _, p = hsic_gam(x, y) # Run HSIC test / Chạy kiểm định HSIC
-    # p-value > 0.05 means we accept H0 (Independence) / p > 0.05 nghĩa là chấp nhận giả thuyết độc lập
-    assert p > 0.05 
+
 
 def test_dag_penalty():
     """Verify NOTEARS DAG penalty / Kiểm tra hàm phạt đồ thị DAG"""

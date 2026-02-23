@@ -1,173 +1,272 @@
 """
-Ultimate Deep Learning MLP / Mạng nơ-ron MLP chuyên sâu
-Features: Self-Attention, Gumbel-Softmax, Normalizing Flows
-Tính năng: Tự chú ý, Gumbel-Softmax, Luồng chuẩn hóa
+Deep Causal Network - Encoders, SEMs, and Normalizing Flows
+Optimized for Causal Discovery (ANM, PNL, Heterogeneous Mechanisms)
+Kiến trúc mô hình tối ưu cho Phát hiện Nhân quả phi tuyến
 """
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
 
-class AttentionLayer(nn.Module):
-    """Self-Attention for weighting input features / Lớp tự chú ý đánh trọng số đặc trưng"""
+class Encoder(nn.Module):
+    """
+    Encoder: Ánh xạ không gian đầu vào X thành biểu diễn ẩn và chỉ định cơ chế (Mechanisms).
+    Dùng để xử lý dữ liệu hỗn hợp (heterogeneous data) có thể sinh ra từ nhiều cơ chế nhân quả khác nhau.
+    """
+    def __init__(self, input_dim, hidden_dim, n_mechanisms=2, dropout=0.1):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU()
+        )
+        # Sinh ra tham số phân phối ẩn (Cụm cơ chế)
+        self.z_logits = nn.Linear(hidden_dim, n_mechanisms)
+        
+    def forward(self, x, temperature=1.0):
+        feat = self.net(x)
+        logits = self.z_logits(feat)
+        
+        # Xác suất phân loại cơ chế
+        q_y = F.softmax(logits, dim=-1)
+        # Tính toán KL Divergence từ Prior Uniform (1/K) -> Tránh Error VAE
+        log_q_y = torch.log(q_y + 1e-10)
+        kl_loss = torch.sum(q_y * (log_q_y - np.log(1.0 / q_y.shape[-1])), dim=-1)
+        
+        # Sử dụng Gumbel-Softmax để lấy mẫu cơ chế tự động và có thể vi phân
+        if self.training:
+            z_soft = F.gumbel_softmax(logits, tau=temperature, hard=False)
+        else:
+            z_soft = q_y
+            
+        return feat, z_soft, kl_loss.mean()
+
+class ANM_SEM(nn.Module):
+    """
+    Structural Equation Model (SEM): Mô hình hóa phương trình nhân quả f(X).
+    Sử dụng mạng phần dư (Residual Network) để xấp xỉ các hàm phi tuyến phức tạp nhất.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers=3, dropout=0.1):
+        super().__init__()
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+        
+        self.blocks = nn.ModuleList()
+        for _ in range(n_layers):
+            self.blocks.append(nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim)
+            ))
+            
+        self.output_proj = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        h = self.input_proj(x)
+        for block in self.blocks:
+            h = F.gelu(h + block(h)) # Residual connection
+        y_pred = self.output_proj(h)
+        return y_pred
+
+class GaussianNoise(nn.Module):
+    """Mô hình Nhiễu Gaussian tự học"""
     def __init__(self, dim):
         super().__init__()
-        self.query = nn.Linear(dim, dim) # Query projection / Phép chiếu Query
-        self.key = nn.Linear(dim, dim) # Key projection / Phép chiếu Key
-        self.value = nn.Linear(dim, dim) # Value projection / Phép chiếu Value
-        self.scale = dim ** -0.5 # Scaling factor / Hệ số tỉ lệ
+        # Tham số học độ lệch chuẩn của nhiễu
+        self.log_var = nn.Parameter(torch.zeros(dim))
 
-    def forward(self, x):
-        x_in = x.unsqueeze(1) # Add sequence dimension / Thêm chiều chuỗi
-        q = self.query(x_in) # Compute query / Tính query
-        k = self.key(x_in) # Compute key / Tính key
-        v = self.value(x_in) # Compute value / Tính value
-        
-        # Dot-product attention / Chú ý tích vô hướng
-        attn = (q @ k.transpose(-2, -1)) * self.scale # Calculate scores / Tính điểm số
-        attn = attn.softmax(dim=-1) # Normalize weights / Chuẩn hóa trọng số
-        out = (attn @ v).squeeze(1) # Apply attention / Áp dụng chú ý
-        return out + x # Residual connection / Kết nối phần dư
+    def compute_log_prob(self, noise):
+        var = torch.exp(self.log_var)
+        log_prob = -0.5 * (torch.log(2 * np.pi * var) + (noise ** 2) / var)
+        return log_prob.sum(dim=-1)
 
-class InvertibleLayer(nn.Module):
-    """Monotonic Invertible Layer / Lớp khả nghịch đơn điệu"""
-    def __init__(self, dim):
+class SplineFlowNoise(nn.Module):
+    """
+    Mô hình Nhiễu dùng Normalizing Flow (Cụ thể là các đường cong Spline đơn điệu).
+    Giúp mô hình khớp với các loại nhiễu không chuẩn (Non-Gaussian), 
+    vốn rất quan trọng trong bài toán ANM để phá vỡ tính đối xứng nhân quả giữa X và Y.
+    """
+    def __init__(self, dim, n_bins=16):
         super().__init__()
-        self.weights = nn.Parameter(torch.ones(dim)) # Learnable weights / Trọng số học được
-        self.bias = nn.Parameter(torch.zeros(dim)) # Learnable bias / Độ chệch học được
-        
-    def forward(self, x):
-        # f(x) = softplus(w) * x + b (Ensures monotonicity / Đảm bảo tính đơn điệu)
-        return F.softplus(self.weights) * x + self.bias
-    
-    def inverse(self, y):
-        """Invert the transformation / Nghịch đảo phép biến đổi"""
-        return (y - self.bias) / F.softplus(self.weights)
-
-class ResBlock(nn.Module):
-    """Residual Block with LayerNorm / Khối phần dư kèm LayerNorm"""
-    def __init__(self, dim, dropout=0.1):
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Linear(dim, dim), # Linear layer / Lớp tuyến tính
-            nn.LayerNorm(dim), # Normalization / Chuẩn hóa lớp
-            nn.GELU(), # Activation function / Hàm kích hoạt
-            nn.Dropout(dropout), # Dropout for regularization / Dropout ổn định hóa
-            nn.Linear(dim, dim), # Second linear layer / Lớp tuyến tính thứ hai
-            nn.LayerNorm(dim) # Final normalization / Chuẩn hóa cuối
+        self.dim = dim
+        self.n_bins = n_bins
+        # Ánh xạ từ nhiễu sang tham số Spline 
+        self.spline_params = nn.Sequential(
+            nn.Linear(dim, 32),
+            nn.GELU(),
+            nn.Linear(32, dim * (3 * n_bins + 1))
         )
-    def forward(self, x):
-        # Add input to output (Residual / Phần dư)
-        return F.gelu(x + self.block(x))
+        
+    def forward(self, noise):
+        """Khớp nhiễu vào phân phối phức tạp qua Flow phi tuyến đơn điệu"""
+        params = self.spline_params(noise)
+        # Tính toán biến đổi Flow đơn điệu qua sự giãn nở tanh
+        noise_transformed = torch.tanh(params.view(noise.shape[0], self.dim, -1)).sum(dim=-1)
+        return noise_transformed
 
-class MonotonicSplineLayer(nn.Module):
-    """Neural Spline Flow simplified / Luồng Spline Nơ-ron đơn giản hóa"""
-    def __init__(self, dim, hidden_dim=32, n_bins=8):
+class Decoder(nn.Module):
+    """
+    Decoder cho phép đảo ngược trạng thái: Cực kì hữu ích cho mô hình PNL (Post-Nonlinear).
+    Ánh xạ dạng Y = g(f(X) + N). Trong đó Decoder tương đương với hàm g(.) đơn điệu.
+    """
+    def __init__(self, output_dim):
         super().__init__()
-        self.dim = dim # Dimension / Số chiều
-        self.n_bins = n_bins # Number of spline bins / Số lượng thùng spline
-        # Learn mapping to spline parameters / Học ánh xạ sang tham số spline
-        self.spline_params = nn.Linear(dim, dim * (3 * n_bins + 1))
+        # Trọng số qua Softplus bảo đảm đạo hàm luôn dương tính -> tính đơn điệu (Monotonicity)
+        self.weight = nn.Parameter(torch.ones(output_dim))
+        self.bias = nn.Parameter(torch.zeros(output_dim))
         
     def forward(self, x):
-        params = self.spline_params(x) # Get parameters / Lấy tham số
-        # Reshape and sum to form monotonic curve / Chuyển hình và cộng để tạo đường đơn điệu
-        return torch.tanh(params.view(x.shape[0], self.dim, -1)).sum(dim=-1)
-
-class MultivariateCausalBackbone(nn.Module):
-    """Feature selection backbone / Khung mạng chọn lọc đặc trưng"""
-    def __init__(self, input_dim, hidden_dim, dropout=0.1):
-        super().__init__()
-        self.gate = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim), # Hidden layer / Lớp ẩn
-            nn.GELU(), # GELU activation / Kích hoạt GELU
-            nn.Linear(hidden_dim, input_dim), # Project back / Chiếu ngược lại
-            nn.Sigmoid() # Sigmoid for gating / Sigmoid để tạo cổng
-        )
-        # Sequential residual blocks / Các khối phần dư tuần tự
-        self.res_blocks = nn.ModuleList([ResBlock(input_dim, dropout) for _ in range(3)])
-
-    def forward(self, x):
-        # Apply gate (feature selection / chọn lọc đặc trưng)
-        gated_x = x * self.gate(x)
-        for block in self.res_blocks: # Pass through ResBlocks / Đi qua các khối ResBlock
-            gated_x = block(gated_x)
-        return gated_x # Result / Kết quả
+        return F.softplus(self.weight) * x + self.bias
+        
+    def inverse(self, y_trans):
+        """Khả nghịch lại g^-1(.) cho việc tính nhiễu N = g^-1(Y) - f(X)"""
+        return (y_trans - self.bias) / (F.softplus(self.weight) + 1e-6)
 
 class MLP(nn.Module):
-    """Multi-Head Causal MLP / Mạng MLP nhiều đầu ra nhân quả"""
-    def __init__(self, input_dim, hidden_dim, output_dim, n_clusters=2, device='cpu'):
+    """
+    Mạng Causal MLP hợp nhất toàn bộ vòng đời: Encoder -> SEM -> Decoder + Flow/Gaussian Noise.
+    Tối ưu hóa để phát hiện nhân quả song biến (X -> Y hoặc mạng đa biến).
+    * Giữ lại module tên MLP để tương thích với các script gọi vào của bạn.
+    """
+    def __init__(self, input_dim, hidden_dim, output_dim=1, n_clusters=2, use_spline=True, device='cpu'):
         super().__init__()
-        self.device = device # Computation device / Thiết bị tính toán
-        self.n_clusters = n_clusters # Num of mechanisms / Số lượng cơ chế
-        self.output_dim = output_dim # Output size / Kích thước đầu ra
+        self.device = device
+        self.n_clusters = n_clusters
         
-        self.backbone = MultivariateCausalBackbone(input_dim, hidden_dim) # Core feat / Đặc trưng lõi
+        # 1. Tách đặc trưng và cụm cơ chế (Gumbel Mechanism Selection)
+        self.encoder = Encoder(input_dim, hidden_dim, n_clusters)
         
-        # VAE heads / Các đầu VAE
-        self.z_mean = nn.Linear(input_dim, n_clusters) # Mean head / Đầu tính trung bình
-        self.z_logvar = nn.Linear(input_dim, n_clusters) # Variance head / Đầu tính phương sai
+        # 2. Xấp xỉ phương trình cấu trúc f(X) qua Additive Noise Model (ANM-SEM)
+        self.sem = ANM_SEM(input_dim, hidden_dim, output_dim)
         
-        self.regressor = nn.Linear(input_dim, output_dim * 2) # Prediction head / Đầu dự báo
-        self.spline_flow = MonotonicSplineLayer(output_dim) # Noise model / Mô hình nhiễu
-        self.pnl_transform = InvertibleLayer(output_dim) # PNL head / Đầu PNL
-        
-        self.to(device) # Move to device / Chuyển vào thiết bị
-        
-    def encode_latent(self, x):
-        """Extract latent parameters / Trích xuất tham số ẩn"""
-        feat = self.backbone(x)
-        return self.z_mean(feat), self.z_logvar(feat)
-
-    def reparameterize(self, mu, logvar):
-        """VAE reparameterization trick / Thủ thuật lấy mẫu VAE"""
-        std = torch.exp(0.5 * logvar) # Get standard deviation / Lấy độ lệch chuẩn
-        eps = torch.randn_like(std) # Normal noise / Nhiễu chuẩn
-        return mu + eps * std # Reparameterized sample / Mẫu đã tham số hóa
-
-    def forward(self, x, temperature=1.0):
-        if isinstance(x, np.ndarray): x = torch.from_numpy(x).float().to(self.device)
+        # 3. Mô hình hóa phân phối nhiễu (Gaussian hoặc Spline)
+        self.gaussian = GaussianNoise(output_dim)
+        self.use_spline = use_spline
+        if use_spline:
+            self.spline_flow = SplineFlowNoise(output_dim)
             
-        feat = self.backbone(x) # Extract features / Trích xuất đặc trưng
+        # 4. Post-Nonlinear Decoder
+        self.pnl_transform = Decoder(output_dim)
         
-        mu_z, logvar_z = self.z_mean(feat), self.z_logvar(feat) # Latent heads / Các đầu biến ẩn
-        z_sample = self.reparameterize(mu_z, logvar_z) # Sample latent / Lấy mẫu biến ẩn
-        z_soft = F.softmax(z_sample / temperature, dim=-1) # Gumbel-Softmax like / Phân cụm mềm
+        self.to(device)
+
+    def forward(self, x, y=None, temperature=1.0):
+        """Lan truyền tiến tính toán phương trình nhân quả"""
+        if isinstance(x, np.ndarray): x = torch.from_numpy(x).float().to(self.device)
+        if y is not None and isinstance(y, np.ndarray): y = torch.from_numpy(y).float().to(self.device)
         
-        # KL loss formula / Công thức mất mát KL
-        kl_vae = -0.5 * torch.sum(1 + logvar_z - mu_z.pow(2) - logvar_z.exp(), dim=-1)
+        # 1. Phân loại cơ chế sinh học
+        feat, z_soft, kl_loss = self.encoder(x, temperature)
         
-        reg_out = self.regressor(feat) # Regressor output / Đầu ra mạng hồi quy
-        mu, log_var = torch.chunk(reg_out, 2, dim=-1) # Split mu and var / Tách trung bình và phương sai
+        # 2. Suy diễn f(X)
+        mu = self.sem(x)
         
-        noise_spline = self.spline_flow(torch.randn_like(mu)) # Generated noise / Tạo nhiễu
+        # 3. Chuyển vị hậu hình học (Post-nonlinear)
+        y_trans = self.pnl_transform(mu)
         
-        return {
-            "mu": mu, "log_var": log_var, "z_soft": z_soft,
-            "kl_loss": kl_vae.mean(), "noise_complex": noise_spline,
-            "y_trans": self.pnl_transform(mu) # Transform for PNL / Biến đổi cho PNL
+        results = {
+            "feat": feat,
+            "z_soft": z_soft,
+            "kl_loss": kl_loss, # Khôi phục biến này để tích hợp Core GPPOM_HSIC
+            "mu": mu,           # Giá trị dự báo của hàm nguyên trạng thái
+            "y_trans": y_trans, # Giá trị sau biển đổi
+            "log_var": self.gaussian.log_var
         }
-
-    def train_model(self, x, y, epochs=200, lr=1e-3):
-        """Train the MLP / Huấn luyện MLP"""
-        optimizer = optim.AdamW(self.parameters(), lr=lr, weight_decay=1e-2)
-        self.train() # Set training mode / Đặt chế độ huấn luyện
         
-        for epoch in range(epochs):
-            optimizer.zero_grad() # Clear grads / Xóa gradient
-            out = self.forward(x) # Forward / Lan truyền tiến
-            # NLL Loss / Mất mát log-likelihood âm
-            loss_reg = F.gaussian_nll_loss(out['mu'], y, torch.exp(out['log_var']))
-            loss = loss_reg + 0.1 * out['kl_loss'] # Total loss / Tổng mất mát
-            loss.backward() # Backward / Lan truyền ngược
-            optimizer.step() # Update / Cập nhật trọng số
+        if y is not None:
+            # Nhiễu sinh ra
+            noise = y - mu
+            results["noise"] = noise
+            
+            # Khớp Model Nhiễu không chuẩn bằng Spline Flow
+            if self.use_spline:
+                results["noise_complex"] = self.spline_flow(noise)
+                
+            results["log_prob_gaussian"] = self.gaussian.compute_log_prob(noise)
 
-    def predict(self, x):
-        """Predict results / Dự báo kết quả"""
-        self.eval() # Eval mode / Chế độ đánh giá
-        with torch.no_grad(): # No tracking / Không theo dõi gradient
-            out = self.forward(x) # Get output / Lấy đầu ra
-            return out['mu'].cpu().numpy(), torch.exp(0.5*out['log_var']).cpu().numpy(), out['z_soft'].cpu().numpy()
+        return results
+
+    def estimate_ate(self, X_control, X_treatment):
+        """
+        Tính toán Average Treatment Effect (ATE)
+        ATE = E[ Y | do(X_treatment) ] - E[ Y | do(X_control) ]
+        Rất ý nghĩa khi muốn đo kích thước tác động nhân quả, bên cạnh việc chỉ tìm hướng.
+        """
+        self.eval() # Chuyển sang chế độ đánh giá
+        with torch.no_grad():
+            if isinstance(X_control, np.ndarray): 
+                X_control = torch.from_numpy(X_control).float().to(self.device)
+            if isinstance(X_treatment, np.ndarray): 
+                X_treatment = torch.from_numpy(X_treatment).float().to(self.device)
+            
+            # Suy diễn giá trị Y qua cấu trúc Structural Equation f(X)
+            y_control = self.sem(X_control)
+            y_treatment = self.sem(X_treatment)
+            
+            # Decode nếu mô hình đang hoạt động ở chế độ PNL
+            y_control_decoded = self.pnl_transform.inverse(y_control)
+            y_treatment_decoded = self.pnl_transform.inverse(y_treatment)
+            
+            # Tính Individual Treatment Effect (ITE) và lấy giá trị trung bình ATE
+            ite = y_treatment_decoded - y_control_decoded
+            ate = torch.mean(ite).item()
+            
+        return ate
+
+    def get_global_ate_matrix(self, X, W_dag=None, eps=1e-3):
+        """
+        Sử dụng ATE để khám phá Cấu trúc Toàn cục (Global Discovery Assist).
+        Chạy mô phỏng do-calculus (can thiệp) trên toàn bộ không gian biến:
+        Đo lường độ thay đổi của toàn bộ hệ thống (Y_j) khi ta tác động eps vào X_i.
+        Jacobian Matrix ATE_ij = partial f_j / partial x_i.
+        """
+        self.eval()
+        with torch.no_grad():
+            if isinstance(X, np.ndarray):
+                X_ten = torch.from_numpy(X).float().to(self.device)
+            else:
+                X_ten = X.clone().float().to(self.device)
+                
+            n_samples, n_vars = X_ten.shape
+            ate_matrix = torch.zeros((n_vars, n_vars), device=self.device)
+            
+            # Tính Control State (Giá trị dự đoán mạng SCM Gốc)
+            if W_dag is not None:
+                # Hệ thống DAG: Biến j chỉ nhận input từ Parents của nó (X @ W_dag)
+                base_input = X_ten @ W_dag
+            else:
+                base_input = X_ten
+                
+            y_base = self.sem(base_input)
+            y_base = self.pnl_transform.inverse(y_base)
+            
+            # Tính Treatment State lần lượt cho từng biến i
+            for i in range(n_vars):
+                # Intervene (Treatment) trên biến X_i hiện tại
+                X_treat = X_ten.clone()
+                X_treat[:, i] += eps # Bơm nhiễu can thiệp vào riêng biến i
+                
+                # Biến i thay đổi, mạng nhân quả DAG sẽ truyền tác động này xuống các children của nó thông qua W_dag
+                if W_dag is not None:
+                    treat_input = X_treat @ W_dag
+                else:
+                    treat_input = X_treat
+                    
+                y_treat = self.sem(treat_input)
+                y_treat = self.pnl_transform.inverse(y_treat)
+                
+                # ATE = E [ Y_treat - Y_control ] / eps -> Causal Derivative
+                ate_i = torch.mean(y_treat - y_base, dim=0) / eps
+                ate_matrix[i, :] = ate_i
+                
+            # Hệ thống nhân quả (DAG) cấm 1 biến tạo tác động lên chính nó
+            ate_matrix.fill_diagonal_(0.0)
+            
+        return ate_matrix
