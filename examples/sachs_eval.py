@@ -94,8 +94,8 @@ def run_sachs_evaluation():
     headers = df.columns.tolist()
     data = df.values
     
-    # Trim to 2000 samples max for speed
-    data = data[:1000] 
+    # Sử dụng 2000 mẫu để Cân bằng giữa Tốc độ và Độ chính xác (Tập data tổng có hơn 7400 điểm)
+    data = data[:2000] 
     print(f"Loaded Sachs Data: {data.shape[0]} samples, {data.shape[1]} variables")
     print(f"Nodes: {headers}")
     
@@ -118,23 +118,24 @@ def run_sachs_evaluation():
         if u in headers and v in headers:
             W_true[headers.index(u), headers.index(v)] = 1
             
-    # 3. Model Training Mở rộng
+    # 3. Model Training Siêu Tối Ưu (Lightweight & Fast)
     model = DeepANM(
-        n_clusters=3, # Sachs có thể có cơ chế nhiễu dị thể hơn (3 cụm)
-        hidden_dim=64,    
-        lda=0.1,    # Hạ lda xuống do Sachs rất phi tuyến, không nên ép HSIC quá cứng
+        n_clusters=2,     # 2 cụm cơ chế là đủ để bắt Heteroscedasticity, chạy cực nhanh
+        hidden_dim=32,    # Bóp nhỏ mạng MLP do data chỉ có 11 chiều, tránh over-fitting nhiễu
+        lda=0.2,          # Tăng trọng số ép độc lập HSIC lên một chút để bù đắp việc giảm capacity
         device='cuda' if torch.cuda.is_available() else 'cpu'
     )
     
-    n_bootstraps = 5
-    print(f"Starting {n_bootstraps} Bootstraps ALM Training...")
+    n_bootstraps = 8      # Tăng số vòng bootstrap để lọc cạnh nhiễu (Stability Selection)
+    print(f"Starting {n_bootstraps} Bootstraps ALM Training (Lightweight mode)...")
     
     prob_matrix, avg_W_norm = model.fit_bootstrap(
         data_norm,               
         n_bootstraps=n_bootstraps,
-        threshold=0.005,  
-        epochs=300, 
-        lr=5e-3,          
+        threshold=0.01,   # Loại bỏ mũi tên quá mỏng sớm để tập trung ATE
+        epochs=150,       # Thuật toán ALM hội tụ rất nhanh, không cần tới 300 epochs
+        lr=1e-2,          # Đẩy tốc độ học lên cao do mạng đã thu nhỏ
+        batch_size=128,   # Tăng batch size tối ưu mảng GPU
         verbose=True 
     )
     
