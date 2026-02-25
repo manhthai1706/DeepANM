@@ -78,29 +78,31 @@ def plot_dag(W_matrix, labels=None, title="DeepANM Causal Discovery Graph",
     else:
         norm = mcolors.Normalize(vmin=min_w, vmax=max_w)
     
-    # Phối màu mũi tên: Màu lục nhạt (nhẹ) đến Đỏ sậm sẫm (Tác động rất mạnh)
-    cmap = plt.cm.YlOrRd 
+    # Phối màu mũi tên: Hệ màu Mát (Từ Xanh biển nhạt đến Xanh ngọc đậm)
+    cmap = plt.cm.winter_r # Reversed winter (xanh dương sang xanh lá mát) hoặc có thể dùng plt.cm.GnBu
     edge_colors = [cmap(norm(w)) for w in weights]
     
     # Độ rộng mũi tên tăng dần theo cường độ ATE
     edge_widths = [1.5 + (w / (max_w + 1e-9)) * 3.5 for w in weights]
 
-    # Tính toán bố cục (Layout thuật toán lực đẩy của Kamada-Kawai giúp đồ thị bung đẹp nhất)
-    # Set weight=None để thuật toán chỉ dựa trên tính kết nối (Topology), không bị văng lỗi vì có ATE âm
-    pos = nx.kamada_kawai_layout(G, weight=None)
+    # Tính toán bố cục
+    # Đổi sang spring_layout (Fruchterman-Reingold) có gắn thêm lực đẩy ngẫu nhiên nhẹ, 
+    # giúp các node có cấu trúc đối xứng (ví dụ X2, X3 đều nhận từ X1 và trỏ về X4) không bị đè lên nhau.
+    pos = nx.spring_layout(G, k=1.5, iterations=100, seed=42, weight=None)
 
-    # Tô màu Node bằng Gradient sang trọng
+    # Tô màu Node bằng màu Trắng (White) có viền sẫm màu
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, 
-                           node_color='#3498db', alpha=0.9,
-                           edgecolors='white', linewidths=2.0)
+                           node_color='white', alpha=1.0,
+                           edgecolors='#2c3e50', linewidths=2.5)
     
-    # Vẽ chữ (Labels) mượt mà rõ nét
+    # Vẽ chữ (Labels) màu Đen mượt mà rõ nét
     nx.draw_networkx_labels(G, pos, ax=ax, font_size=font_size, 
-                            font_weight='bold', font_color='white')
+                            font_weight='bold', font_color='black')
     
     # Vẽ vòng cung Mũi tên (Dẹp vòng cung để nét cắt đẹp)
-    nx.draw_networkx_edges(G, pos, ax=ax, arrowstyle='-|>', arrowsize=20, 
+    nx.draw_networkx_edges(G, pos, ax=ax, arrowstyle='-|>', arrowsize=22, 
                            edge_color=edge_colors, width=edge_widths,
+                           node_size=node_size, # Rất quan trọng: Báo cho NetworkX biết mép Node ở đâu để cắm mũi tên vào
                            connectionstyle="arc3,rad=0.1", alpha=0.85)
 
     ax.set_title(title, fontsize=16, fontweight='bold', pad=20)

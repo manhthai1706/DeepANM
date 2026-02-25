@@ -100,8 +100,6 @@ def run_sachs_evaluation():
     
     data_mean = np.mean(data, axis=0)
     data_std = np.std(data, axis=0)
-    data_norm = (data - data_mean) / (data_std + 1e-8)
-    
     # 2. Extract Ground Truth
     gt_edges = [
         ("erk", "akt"), ("mek", "erk"), ("pip2", "pkc"), ("pip3", "akt"),
@@ -117,6 +115,10 @@ def run_sachs_evaluation():
         if u in headers and v in headers:
             W_true[headers.index(u), headers.index(v)] = 1
             
+    # KHÔNG CẦN TIỀN XỬ LÝ THỦ CÔNG: Hệ thống DeepANM phiên bản mới đã tự động hóa mọi thứ!
+    # Bạn chỉ cần truyền trực tiếp Dữ Liệu Thô (Raw Data) vào mô hình.
+    data_raw = df.values
+    
     # 3. Model Training Siêu Tối Ưu (Lightweight & Fast)
     model = DeepANM(
         n_clusters=2,     # 2 cụm cơ chế là đủ để bắt Heteroscedasticity, chạy cực nhanh
@@ -128,14 +130,19 @@ def run_sachs_evaluation():
     n_bootstraps = 8      # Tăng số vòng bootstrap để lọc cạnh nhiễu (Stability Selection)
     print(f"Starting {n_bootstraps} Bootstraps ALM Training (Lightweight mode)...")
     
+    # ----------------------------------------------------
+    # BẬT TÍNH NĂNG TỰ ĐỘNG LỌC OUTLIERS & CHUẨN HÓA GAUSSIAN
+    # ----------------------------------------------------
     prob_matrix, avg_W_norm = model.fit_bootstrap(
-        data_norm,               
+        data_raw,               
         n_bootstraps=n_bootstraps,
-        threshold=0.01,   # Loại bỏ mũi tên quá mỏng sớm để tập trung ATE
-        epochs=150,       # Thuật toán ALM hội tụ rất nhanh, không cần tới 300 epochs
-        lr=1e-2,          # Đẩy tốc độ học lên cao do mạng đã thu nhỏ
-        batch_size=128,   # Tăng batch size tối ưu mảng GPU
-        verbose=True 
+        threshold=0.01,   
+        epochs=150,       
+        lr=1e-2,          
+        batch_size=128,   
+        verbose=True,
+        apply_quantile=True,  # Ép toàn bộ biến phân phối lệch về hình Quả chuông (Hỗ trợ FastHSIC)
+        apply_isolation=True  # Rạch ròi 5% dữ liệu quấy rối, rác, outlier sinh học đo lường sai
     )
     
     # 4. Filter Edges (Dùng ngưỡng 30% mẫu cho Causal Graph)
@@ -157,21 +164,42 @@ def run_sachs_evaluation():
     print(f" * Recall: {metrics['Recall']:.4f}")
     print("="*60)
     
-    # 6. Món Quà: Vẽ Đồ thị Causal DAG vừa học được để Báo Cáo
+    # 6. Vẽ Đồ thị Causal DAG: So sánh giữa Kết quả Dự đoán và Ground Truth
     import os
-    os.makedirs('results', exist_ok=True) # Create output dir
+    os.makedirs('results', exist_ok=True)
     
-    print("\n[Visualizer] Đang dựng File ảnh vẽ lưới mạng tế bào Sachs (Node & Edges)...")
+    print("\n[Visualizer] Đang dựng File ảnh so sánh đồ thị Sachs...")
+    import matplotlib.pyplot as plt
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 9))
+    fig.suptitle("DeepANM Causal Discovery - Sachs (2005) Dataset", fontsize=18, fontweight='bold', y=1.01)
+    
+    # Trái: Đồ thị Dự đoán (sử dụng prob_matrix mời nhất có giá trị thực sự giữa 0.0 - 1.0)
     plot_dag(
-        W_matrix=W_pred * avg_W_norm, # Nhân trọng số nhị phân với ATE trung bình để hiện cường độ
+        W_matrix=prob_matrix,          # prob_matrix có giá trị tỷ lệ thực, nếu cạnh xuất hiện 30% sẽ là 0.3+
         labels=headers,
-        title="DeepANM Causal Discovery Graph - Sachs (2005) Dataset",
-        threshold=0.01,
-        save_path="results/sachs_causal_graph.png",
-        node_size=2500,
-        font_size=12
+        title="[Predicted] (Bootstrap Prob)",
+        threshold=0.3,                 # Ngưỡng 30% là tiêu chuẩn Stability Selection 
+        ax=ax1,
+        node_size=2200,
+        font_size=10
     )
-    print("Mời bạn mở file 'results/sachs_causal_graph.png' để thưởng thức sức mạnh của DECI Flow!")
+    
+    # Phải: Ground Truth để so sánh trực quan
+    plot_dag(
+        W_matrix=W_true,
+        labels=headers,
+        title="[Ground Truth] Sachs (2005)",
+        threshold=0.5,                 # Giá trị trong W_true là 0 hoặc 1, ngưỡng 0.5 để lấy cạnh thực sự
+        ax=ax2,
+        node_size=2200,
+        font_size=10
+    )
+
+    plt.tight_layout()
+    plt.savefig("results/sachs_causal_graph.png", bbox_inches='tight', dpi=200)
+    plt.close()
+    print("Mời bạn mở file 'results/sachs_causal_graph.png' để xem so sánh trực quan!")
     
 if __name__ == '__main__':
     run_sachs_evaluation()

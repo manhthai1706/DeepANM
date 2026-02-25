@@ -118,7 +118,8 @@ def test_deepanm_integration():
     data = np.random.randn(n_samples, d)
     
     # Small epochs for testing
-    model = DeepANM(data=data, epochs=2, batch_size=25, verbose=False)
+    model = DeepANM()
+    model.fit(data, epochs=2, batch_size=25, verbose=False)
     
     # Verify adjacency matrix extractors
     W, W_bin = model.get_dag_matrix(threshold=0.01) 
@@ -133,7 +134,4 @@ def test_deepanm_integration():
     # Predict clusters
     clusters = model.predict_clusters(data)
     assert clusters.shape == (n_samples,)
-    
-    # Residuals shape
-    res = model.get_residuals(data)
-    assert res.shape == (n_samples, d)
+

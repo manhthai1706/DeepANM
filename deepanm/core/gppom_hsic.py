@@ -89,24 +89,25 @@ class GPPOMC_lnhsic_Core(nn.Module):
         self.MLP = mlp.MLP(input_dim=self.d, hidden_dim=hidden_dim, 
                           output_dim=self.d, n_clusters=n_clusters, device=device)
         
-        self.gp_phi_z = RFFGPLayer(n_clusters, n_features=128) # Z mapping / Ánh xạ Z
-        self.gp_phi_x = RFFGPLayer(self.d, n_features=128) # X mapping / Ánh xạ X
-        self.linear_head = nn.Linear(128, self.d, bias=False) # Head / Đầu ra tuyến tính
+        self.gp_phi_z = RFFGPLayer(n_clusters, n_features=64) # Z mapping / Ánh xạ Z siêu nhẹ
+        self.gp_phi_x = RFFGPLayer(self.d, n_features=64) # X mapping / Ánh xạ X siêu nhẹ
+        self.linear_head = nn.Linear(64, self.d, bias=False) # Head / Đầu ra tuyến tính
         
-        self.fast_hsic = FastHSIC(self.d, n_clusters, n_features=128) # Cluster HSIC / HSIC phân cụm
-        self.pnl_hsic = FastHSIC(self.d, self.d, n_features=128) # PNL noise HSIC / HSIC nhiễu PNL
+        self.fast_hsic = FastHSIC(self.d, n_clusters, n_features=64) # Cluster HSIC / HSIC phân cụm
+        self.pnl_hsic = FastHSIC(self.d, self.d, n_features=64) # PNL noise HSIC / HSIC nhiễu PNL
 
     def get_dag_penalty(self):
+        r"""
+        Tối ưu hóa: Thay vì chạy vòng lặp nhân ma trận O(d) lần trong Python, 
+        ta giải tích trực tiếp hàm Log-Determinant của DAGMA bằng lõi C++ của PyTorch.
+        Tốc độ tính toán nhanh hơn cực kì nhiều lần, không tốn RAM overhead.
         """
-        NOTEARS tính điểm bằng h(W) cực tiểu chống chu trình.
-        """
-        # Áp dụng Mask loại trừ đường chéo và các ràng buộc tiên nghiệm (nếu có)
         W_dag_masked = self.W_dag * self.constraint_mask
+        A = W_dag_masked * W_dag_masked
         
-        # Ràng buộc chống chu kỳ h(W) = tr(e^(W \circ W)) - d (Sử dụng Hadamard product chuẩn)
-        W_sq = W_dag_masked * W_dag_masked
-        E = torch.matrix_exp(W_sq)
-        h = torch.trace(E) - self.d
+        I = torch.eye(self.d, device=A.device)
+        # Hàm slogdet trả về (sign, logabsdet), ta lấy phần thứ [1] 
+        h = -torch.linalg.slogdet(I - A)[1]
         
         return h
 
@@ -140,20 +141,22 @@ class GPPOMC_lnhsic_Core(nn.Module):
         # Ràng buộc cơ chế: Cơ chế Z (z_soft) phải phụ thuộc chặt chẽ với dữ liệu X
         loss_hsic_clu = self.fast_hsic(batch_data, z_soft)
         
-        # L1 Regularization để Graph nhân quả thưa thớt (Sparse) có thể diễn giải được
+        # L1 Regularization: Giải thuật LASSO làm cho ma trận DAG cực kì thưa thớt (Sparse) 
+        # L2 Regularization: Đóng góp của NOTEARS, chống quá ngưỡng Gradient của từng trọng số đơn
         l1_loss = torch.sum(torch.abs(W_dag_masked))
+        l2_loss = 0.5 * torch.sum(W_dag_masked ** 2)
         
-        # Log-Likelihood dựa trên mô hình Nhiễu được học (Gaussian hoặc SplineFlow)
-        # Giúp đánh giá BIC (Bayesian Information Criterion)
-        log_prob = out.get('log_prob_gaussian', torch.zeros_like(kl_loss))
+        # Log-Likelihood dựa trên luồng Nhiễu GMM của kiến trúc Causica/DECI
+        log_prob = out.get('log_prob_noise', torch.zeros_like(kl_loss))
         loss_nll = -torch.mean(log_prob) 
         
-        # Hàm loss gốc (Chưa có phạt Ràng buộc DAG - Sẽ được Trainer gánh bởi ALM)
+        # Hàm loss gốc tối ưu hóa đa tầng (Multi-objective Augmented Lagrangian Base)
         base_loss = (loss_reg + 
-                     loss_nll * 0.01 + # Phụ trợ NLL Error Fit
+                     loss_nll * 0.015 + 
                      self.lda * loss_hsic_clu + 
                      self.lda * loss_hsic_pnl + 
-                     0.01 * l1_loss + # Giảm L1 xuống mức 0.01 để model tự do học core graph
-                     0.1 * kl_loss) # VAE Latent / Ràng buộc VAE
+                     0.02 * l1_loss + # Chuẩn L1 Thưa thớt cạnh
+                     0.02 * l2_loss + # Chuẩn L2 Tăng mượt bề mặt hàm Loss (NOTEARS)
+                     0.1 * kl_loss) # Ràng buộc VAE
         
         return base_loss, loss_reg, loss_hsic_clu, loss_nll # Return all / Trả về tất cả

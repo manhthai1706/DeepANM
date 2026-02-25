@@ -49,9 +49,9 @@ class Encoder(nn.Module):
 class ANM_SEM(nn.Module):
     """
     Structural Equation Model (SEM): Mô hình hóa phương trình nhân quả f(X).
-    Sử dụng mạng phần dư (Residual Network) để xấp xỉ các hàm phi tuyến phức tạp nhất.
+    Phiên bản siêu nhẹ (Lightweight Residual) dành cho học nhanh.
     """
-    def __init__(self, input_dim, hidden_dim, output_dim, n_layers=3, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, n_layers=2, dropout=0.05):
         super().__init__()
         self.input_proj = nn.Linear(input_dim, hidden_dim)
         
@@ -61,9 +61,7 @@ class ANM_SEM(nn.Module):
                 nn.Linear(hidden_dim, hidden_dim),
                 nn.LayerNorm(hidden_dim),
                 nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.LayerNorm(hidden_dim)
+                nn.Dropout(dropout)
             ))
             
         self.output_proj = nn.Linear(hidden_dim, output_dim)
@@ -241,26 +239,30 @@ class MLP(nn.Module):
                 
             y_base = self.sem(base_input)
             y_base = self.pnl_transform.inverse(y_base)
+            # Tối ưu song song hóa toàn diện O(1) thay vì Loop O(V): Batched Intervention
+            X_treat_batch = X_ten.unsqueeze(0).repeat(n_vars, 1, 1) # Size: [n_vars, n_samples, n_vars]
             
-            # Tính Treatment State lần lượt cho từng biến i
-            for i in range(n_vars):
-                # Intervene (Treatment) trên biến X_i hiện tại
-                X_treat = X_ten.clone()
-                X_treat[:, i] += eps # Bơm nhiễu can thiệp vào riêng biến i
+            # Tiêm nhiễu chéo vào đường chéo (Can thiệp lên chính nó)
+            intervention_eps = torch.eye(n_vars, device=self.device).unsqueeze(1) * eps
+            X_treat_batch += intervention_eps
+            
+            # Cán phẳng về Batch khổng lồ để tống qua Neural Net 1 lần duy nhất
+            X_treat_flat = X_treat_batch.view(n_vars * n_samples, n_vars)
+            
+            if W_dag is not None:
+                treat_input_flat = X_treat_flat @ W_dag
+            else:
+                treat_input_flat = X_treat_flat
                 
-                # Biến i thay đổi, mạng nhân quả DAG sẽ truyền tác động này xuống các children của nó thông qua W_dag
-                if W_dag is not None:
-                    treat_input = X_treat @ W_dag
-                else:
-                    treat_input = X_treat
-                    
-                y_treat = self.sem(treat_input)
-                y_treat = self.pnl_transform.inverse(y_treat)
-                
-                # ATE = E [ Y_treat - Y_control ] / eps -> Causal Derivative
-                ate_i = torch.mean(y_treat - y_base, dim=0) / eps
-                ate_matrix[i, :] = ate_i
-                
+            y_treat_flat = self.sem(treat_input_flat)
+            y_treat_flat = self.pnl_transform.inverse(y_treat_flat)
+            
+            # Phục hồi Tensor thành [n_vars, n_samples, n_vars]
+            y_treat_batch = y_treat_flat.view(n_vars, n_samples, n_vars)
+            
+            # Tính đạo hàm nhân quả nhanh bằng phép Vector Subtraction
+            ate_matrix = torch.mean(y_treat_batch - y_base.unsqueeze(0), dim=1) / eps
+            
             # Hệ thống nhân quả (DAG) cấm 1 biến tạo tác động lên chính nó
             ate_matrix.fill_diagonal_(0.0)
             
