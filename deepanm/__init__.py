@@ -11,10 +11,14 @@ from .models.trainer import DeepANMTrainer
 # Export core components for advanced users
 from .core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
 
+# Utilities
+from .utils.visualize import plot_dag
+
 
 __all__ = [
     'DeepANM',
     'DeepANMTrainer',
     'GPPOMC_lnhsic_Core',
-    'FastHSIC'
+    'FastHSIC',
+    'plot_dag'
 ]

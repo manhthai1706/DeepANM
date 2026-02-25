@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from deepanm import DeepANM
+from deepanm import DeepANM, plot_dag
 
 def evaluate_graph(W_pred, W_true):
     """
@@ -157,6 +156,22 @@ def run_sachs_evaluation():
     print(f" * Precision: {metrics['Precision']:.4f}")
     print(f" * Recall: {metrics['Recall']:.4f}")
     print("="*60)
+    
+    # 6. Món Quà: Vẽ Đồ thị Causal DAG vừa học được để Báo Cáo
+    import os
+    os.makedirs('results', exist_ok=True) # Create output dir
+    
+    print("\n[Visualizer] Đang dựng File ảnh vẽ lưới mạng tế bào Sachs (Node & Edges)...")
+    plot_dag(
+        W_matrix=W_pred * avg_W_norm, # Nhân trọng số nhị phân với ATE trung bình để hiện cường độ
+        labels=headers,
+        title="DeepANM Causal Discovery Graph - Sachs (2005) Dataset",
+        threshold=0.01,
+        save_path="results/sachs_causal_graph.png",
+        node_size=2500,
+        font_size=12
+    )
+    print("Mời bạn mở file 'results/sachs_causal_graph.png' để thưởng thức sức mạnh của DECI Flow!")
     
 if __name__ == '__main__':
     run_sachs_evaluation()
