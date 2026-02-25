@@ -90,9 +90,7 @@ class HeterogeneousNoiseModel(nn.Module):
         
         # GMM Parameters: Phân phối trọng lượng hỗn hợp (Logits), Trọng tâm (Means) và Biên độ uốn (Log-Vars)
         self.logits = nn.Parameter(torch.zeros(dim, n_components))
-        # Khởi tạo trung bình cụm gần 0 để không xung đột với hàm Error Hồi Quy (MSE)
         self.means = nn.Parameter(torch.randn(dim, n_components) * 0.05)
-        # Khởi tạo Log phương sai âm để nhiễu ban đầu hẹp, bắt buộc model phải học f(X) tử tế
         self.log_vars = nn.Parameter(torch.zeros(dim, n_components) - 1.0)
 
     def compute_log_prob(self, noise):
@@ -151,7 +149,7 @@ class MLP(nn.Module):
         # 2. Xấp xỉ phương trình cấu trúc f(X) qua Additive Noise Model (ANM-SEM)
         self.sem = ANM_SEM(input_dim, hidden_dim, output_dim)
         
-        # 3. Mô hình hóa phân phối nhiễu phức hợp công nghệ nguyên bản của Causica / DECI (Microsoft)
+        # 3. Mô hình hóa phân phối nhiễu phức hợp qua mạng GMM lai DECI
         self.noise_model = HeterogeneousNoiseModel(output_dim, n_components=5)
             
         # 4. Post-Nonlinear Decoder
@@ -186,7 +184,6 @@ class MLP(nn.Module):
             noise = y - mu
             results["noise"] = noise
             
-            # Tính Log-Likelihood chính xác theo mô hình DECI Flow để tối ưu hóa NLL Loss toàn diện
             results["log_prob_noise"] = self.noise_model.compute_log_prob(noise)
 
         return results

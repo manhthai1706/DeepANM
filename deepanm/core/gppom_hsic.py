@@ -143,14 +143,14 @@ class GPPOMC_lnhsic_Core(nn.Module):
         # L1 Regularization để Graph nhân quả thưa thớt (Sparse) có thể diễn giải được
         l1_loss = torch.sum(torch.abs(W_dag_masked))
         
-        # Log-Likelihood dựa trên luồng Nhiễu GMM của kiến trúc Causica/DECI
-        # Ép mạng MLP phải học cách khớp các phân phối nhiễu phức điểm đỉnh cao
-        log_prob = out.get('log_prob_noise', torch.zeros_like(kl_loss))
+        # Log-Likelihood dựa trên mô hình Nhiễu được học (Gaussian hoặc SplineFlow)
+        # Giúp đánh giá BIC (Bayesian Information Criterion)
+        log_prob = out.get('log_prob_gaussian', torch.zeros_like(kl_loss))
         loss_nll = -torch.mean(log_prob) 
         
         # Hàm loss gốc (Chưa có phạt Ràng buộc DAG - Sẽ được Trainer gánh bởi ALM)
         base_loss = (loss_reg + 
-                     loss_nll * 0.015 + # 0.015: Cân bằng hoàn hảo giữa Hồi quy MSE và NLL của DECI GMM
+                     loss_nll * 0.01 + # Phụ trợ NLL Error Fit
                      self.lda * loss_hsic_clu + 
                      self.lda * loss_hsic_pnl + 
                      0.01 * l1_loss + # Giảm L1 xuống mức 0.01 để model tự do học core graph
