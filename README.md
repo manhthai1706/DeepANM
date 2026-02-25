@@ -1,35 +1,35 @@
-# DeepANM: Deep Causal Discovery Framework
+# DeepANM: A Deep Learning Approach to Additive Noise Models for Causal Discovery
 
-[![Architecture](https://img.shields.io/badge/Kiến_trúc-Chi_tiết-blueviolet?style=flat-square)](ARCH.md)
+[![Architecture](https://img.shields.io/badge/Architecture-Details-blueviolet?style=flat-square)](ARCH.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg?style=flat-square)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c?style=flat-square)](https://pytorch.org)
 
-**DeepANM** (Deep Additive Noise Model) là một thư viện Python tiên tiến dành cho học tăng cường và Khám phá Nhân quả (Causal Discovery) từ dữ liệu quan sát. 
+**DeepANM** (Deep Additive Noise Model) là một thư viện Python mã nguồn mở phục vụ cho bài toán Khám phá Nhân quả (Causal Discovery) từ dữ liệu quan sát. 
 
-Khởi nguồn ý tưởng từ ANM-MM ban đầu, DeepANM đã được đập đi xây lại hoàn toàn để tích hợp những công nghệ SOTA (State-of-the-Art) mới nhất từ **Microsoft Causica (DECI)**, **NOTEARS**, và **DAGMA**, biến nó trở thành một cỗ máy đa nhiệm mạnh mẽ có khả năng xử lý nhiễu phi tuyến tính phức tạp (Non-Gaussian, Heteroscedastic) trong Sinh học tế bào, Tài chính và Dữ liệu hỗn hợp.
+Dự án này được khởi tạo và truyền cảm hứng rất lớn từ framework **ANM-MM** (Additive Noise Model - Mixture Model) của tác giả [amber0309](https://github.com/amber0309/ANM-MM). Trong quá trình học hỏi và mở rộng, chúng tôi đã tích hợp thêm một số ý tưởng toán học và kiến trúc học sâu từ các bài báo khoa học nổi bật như **DECI (Causica)**, **NOTEARS**, và **DAGMA** nhằm nỗ lực cải thiện việc xử lý nhiễu phi tuyến tính và tối ưu hóa đồ thị DAG.
+
+Mục tiêu của DeepANM là tạo ra một công cụ thực nghiệm, cung cấp các hàm API dễ sử dụng cho những ai đang tìm hiểu và nghiên cứu về AI Nhân quả.
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá (Core Technologies)
+## 🌟 Ý Tưởng và Nguồn Cảm Hứng (Inspirations)
 
-### 1. 🌪️ Mô hình Nhiễu Dị Thể DECI-Flow (Gaussian Mixture Model)
-Thay vì giả định nhiễu là hình quả chuông (Gaussian) ngây thơ như các thuật toán cũ (PC, GES, NOTEARS), DeepANM được trang bị **HeterogeneousNoiseModel**. Thuật toán sử dụng một màng lọc GMM (Gaussian Mixture) linh hoạt kết hợp với thủ thuật toán học `Log-Sum-Exp` chống nổ Gradient. Nó hấp thụ hoàn hảo các loại nhiễu lệch đuôi, đa đỉnh do *Biến giao hội ẩn (Confounder)* cản trở, cung cấp **Negative Log-Likelihood (NLL)** siêu chính xác.
+DeepANM không phải là một thuật toán hoàn toàn mới, mà là sự tổng hợp và tinh chỉnh từ những công trình xuất sắc đi trước:
 
-### 2. 🧮 Lõi Toán Học "NOTEARS + DAGMA" 
-Đồ thị nhân quả (DAG) được đảm bảo tuyệt đối không có tính tuần hoàn (vòng lặp) thông qua module Ràng buộc Toán học tối tân:
-- Giải quyết hiện tượng Gradient Vanishing của hàm Exponential trace trong `NOTEARS` khi đồ thị có các chu trình quá dài.
-- Tích hợp chuỗi Polynomial `Log-Det` của kiến trúc `DAGMA` (hệ số Taylor 1/k thay vì 1/k!), giúp tốc độ hội tụ nhanh vượt bậc và bảo toàn Gradient trên mảng khổng lồ.
-- Hỗ trợ LASSO L1 (Làm thưa đồ thị) và L2 (Chống nhiễu hàm mất mát).
+### 1. Mô hình Nhiễu Dị Thể (Lấy cảm hứng từ DECI / Causica)
+Thay vì sử dụng các giả định nhiễu Gaussian cơ bản, mô hình tích hợp `HeterogeneousNoiseModel`. Ý tưởng này học hỏi từ kiến trúc **DECI** (Deep End-to-end Causal Inference) của Microsoft Research, sử dụng cấu trúc Gaussian Mixture Model (GMM) và thủ thuật Log-Sum-Exp. Mục đích là để mô hình có thể xấp xỉ tốt hơn các loại nhiễu phức tạp, lệch đuôi thường gặp trong dữ liệu thực tế.
 
-### 3. ⚡ Đánh Giá Độc Lập Siêu Tốc: ARD FastHSIC
-Toàn bộ mạng được uốn nắn bởi hàm độ đo **HSIC (Hilbert-Schmidt Independence Criterion)**. Để khắc phục bài toán nội suy O(N²) cực kỳ tốn RAM của HSIC nguyên thủy, DeepANM đã phát triển lớp `FastHSIC` áp dụng **Random Fourier Features (RFF)**, ép độ phức tạp xuông còn O(N) và bổ sung *Automatic Relevance Determination (ARD)* để học ra các chiều tín hiệu quan trọng nhất.
+### 2. Ràng Buộc Đồ Thị Hướng Không Chu Trình (NOTEARS & DAGMA)
+Để đảm bảo ma trận trọng số (Adjacency Matrix) học được tạo thành một đồ thị DAG hợp lệ (không có chu trình), DeepANM áp dụng kỹ thuật tối ưu hóa liên tục (Continuous Optimization):
+- **NOTEARS** (Zheng et al., 2018): Đặt nền móng cho việc chuyển bài toán tìm kiếm tổ hợp (combinatorial) khó khăn thành biểu thức toán học khả vi qua hàm vết (Trace exponential constraint). Chúng tôi cũng sử dụng L1/L2 Regularization từ bài báo này để làm đồ thị thưa thớt (sparse) hơn.
+- **DAGMA** (Bello et al., 2022): Để giảm thiểu rủi ro biến mất gradient (Vanishing Gradients) khi đồ thị lớn có các chu trình dài, DeepANM tham khảo cách xấp xỉ Log-Determinant bằng đa thức (Polynomial series) của DAGMA, giúp việc tính toán Gradient ổn định hơn.
 
-### 4. 🔬 Khám Phá Cấu Trúc Bằng Neural ATE Jacobian
-Thay vì chỉ dùng trọng số Graph `W` thuần túy, DeepANM chạy trực tiếp **Do-calculus** (can thiệp ảo) trên mạng nơ-ron bằng vi phân Jacobian. Mức độ `Average Treatment Effect (ATE)` được đo lường chính xác để lọc ra chiều mũi tên, triệt tiêu mọi cạnh ảo sinh ra từ nhiễu thuật toán học sâu.
+### 3. Đánh Giá Tính Độc Lập bằng FastHSIC (RFF)
+Hàm mục tiêu cốt lõi của Additive Noise Models là đảm bảo phần dư (noise/residuals) độc lập thống kê với nguyên nhân (cause). Hệ thống sử dụng Hilbert-Schmidt Independence Criterion (**HSIC**). Để tăng tốc HSIC từ độ phức tạp O(N²) xuống O(N), chúng tôi đã tham khảo và áp dụng kỹ thuật **Random Fourier Features (RFF)** (Rahimi & Recht, 2007).
 
-### 5. 🎨 Module Visualize Causal Graph Chuyên Nghiệp
-Chỉ với 1 dòng code, tạo ra các bức ảnh Đồ thị Nhân Quả (Graph) đẹp mắt chuẩn bài báo khoa học. Mũi tên và nút (Node) được tự động tô màu (Heatmap) và điều chỉnh độ dày tùy thuộc vào sức mạnh của `ATE` và Bootstrap Probability. Tích hợp trực tiếp từ `NetworkX` và thuật toán đẩy lực `Kamada-Kawai`.
+### 4. Neural ATE Jacobian
+Để xác nhận lại độ mạnh của các liên kết nhân quả, DeepANM thử nghiệm áp dụng Đạo hàm Jacobian (Jacobian Matrix) lên mô hình học sâu để xấp xỉ **Average Treatment Effect (ATE)**. Khi kết hợp ma trận cấu trúc (topological mask) và ATE, mô hình hy vọng sẽ lọc bớt được các cạnh giả (false positives).
 
 ---
 
@@ -44,26 +44,26 @@ pip install -r requirements.txt
 
 ---
 
-## 💡 Hướng Dẫn Nhanh (Quick Start)
+## 💡 Hướng Dẫn Sử Dụng (Quick Start)
 
-Xây dựng và trích xuất Causal Graph đa biến chỉ với vài dòng lệnh:
+Dưới đây là một ví dụ cơ bản về cách sử dụng class `DeepANM` để học và trực quan hóa ma trận liên kết.
 
 ```python
 import numpy as np
 from deepanm import DeepANM, plot_dag
 
-# 1. Nạp dữ liệu (Kích thước: [n_samples, n_vars])
+# 1. Dữ liệu giả lập (Ví dụ: [2000 mẫu, 5 biến])
 data = np.random.randn(2000, 5) 
 labels = ["Gen_A", "Gen_B", "C", "D", "E"]
 
-# 2. Khởi tạo DeepANM (Tối ưu tự động trên GPU/CPU)
+# 2. Khởi tạo DeepANM
 model = DeepANM(
-    n_clusters=2,     # Cơ chế màng GMM DECI Flow
-    hidden_dim=32,    # Bề dày Causal MLP layer
-    lda=0.2          # Trọng số vắt HSIC (Ép tính độc lập cao)
+    n_clusters=2,     # Số cụm phân phối GMM
+    hidden_dim=32,    # Kích thước lớp ẩn MLP
+    lda=0.2          # Trọng số ép tính độc lập HSIC
 )
 
-# 3. Chạy Bootstrap Vững Chắc (Stability Selection) - Chống nhiễu ngẫu nhiên
+# 3. Chạy quá trình học sử dụng Bootstrap (Stability Selection)
 prob_matrix, avg_W_ATE = model.fit_bootstrap(
     X=data, 
     n_bootstraps=5, 
@@ -72,37 +72,37 @@ prob_matrix, avg_W_ATE = model.fit_bootstrap(
     lr=1e-2
 )
 
-# 4. Lọc ngưỡng tin cậy >= 30% số lần Bootstrap
+# 4. Lọc các cạnh có độ tin cậy >= 30% (xuất hiện trong 30% số vòng bootstrap)
 W_pred = (prob_matrix > 0.3).astype(int)
 
-# 5. Xuất Đồ thị ảnh tuyệt đẹp!
+# 5. Sử dụng hàm plot_dag để trực quan hóa bằng NetworkX
 plot_dag(
-    W_matrix=W_pred * avg_W_ATE, # Tích hợp cả hướng mũi tên (W) và cường độ (ATE)
+    W_matrix=W_pred * avg_W_ATE, 
     labels=labels,
-    title="Causal Graph Inference",
+    title="Causal Graph Discovery",
     threshold=0.01,
-    save_path="my_discovery.png",
+    save_path="my_discovery.png", # Có thể thay bằng hiển thị trực tiếp (bỏ save_path)
     node_size=2000
 )
 ```
 
 ---
 
-## 🏆 Đột Phá Lịch Sử Benchmark (Sachs 2005 Dataset)
+## 📊 Kết Quả Thực Nghiệm Tham Khảo (Sachs 2005)
 
-Mạng tín hiệu sinh học Tế Bào (Sachs Dataset) với 11 biến protein là bài kiểm định "khét tiếng" nhất của ngành AI Nhân quả học. DeepANM vượt qua phần lớn các thuật toán cổ điển trong việc loại trừ Confounder ẩn và phán đoán đúng hướng.
+Hệ thống cung cấp sẵn một ví dụ thực nghiệm trong thư mục `examples/sachs_eval.py` để chạy thử nghiệm trên bộ dữ liệu dòng chảy tín hiệu protein tế bào Sachs (11 biến, 2000 quan sát).
 
-*Dữ liệu chạy thuần **Continuous Observational** (Không có Can thiệp y tế):*
+Dưới đây là một vài số liệu thực nghiệm đơn giản của thư viện trên bộ dữ liệu thuần quan sát (Continuous Observational), so với một số phương pháp truyền thống:
 
-| Phương pháp | Thuật toán cốt lõi | SHD (Càng thấp càng tốt) | F1-Score |
-| :--- | :--- | :--- | :--- |
-| PC Algorithm | Constraint-based | ~17 | ~ 0.1 |
-| GES | Score-based | ~15 | ~ 0.12 |
-| NOTEARS | Continuous Opt. | > 12 | ~ 0.15 |
-| DAG-GNN | VAE Deep Learning | ~19 | ~ 0.1 |
-| **DeepANM 2026** | **DECI Flow + ATE + FastHSIC** | **22 - 26** * | **0.20 - 0.28** |
+| Phương pháp | Loại thuật toán | SHD (Structural Hamming Distance) |
+| :--- | :--- | :--- |
+| PC Algorithm | Constraint-based | ~17 |
+| GES | Score-based | ~15 |
+| NOTEARS | Continuous Opt. | > 12 |
+| DAG-GNN | VAE Deep Learning | ~19 |
+| **DeepANM** | Học sâu + GMM Nhiễu + ALM | **Khoảng 22 - 26** |
 
-*(Ghi chú: So với NOTEARS cổ điển, DeepANM chặn đứng rủi ro vòng lặp khuyết và các giả định tuyến tính sai lệch, dứt điểm tỉ lệ cạnh bị ngược hướng "Reversed" về sát 1)*
+*(Ghi chú: Kết quả SHD có thể dao động tùy thuộc vào phương pháp tiền xử lý (như Normalize hay Scaler) và tham số học. Mã nguồn DeepANM hiện đang nghiêng về việc loại trừ rủi ro tạo ra cạnh sai thay vì cố tìm mọi cạnh nhỏ.)*
 
 ---
 
@@ -112,32 +112,35 @@ Mạng tín hiệu sinh học Tế Bào (Sachs Dataset) với 11 biến protein 
 DeepANM/
 ├── deepanm/
 │   ├── core/
-│   │   ├── mlp.py                  # Backbone Deep Causal (Encoder, GMM DECI, Decoder PNL)
-│   │   ├── gppom_hsic.py           # Module Tích hợp Augmented Lagrangian, NOTEARS-DAGMA Penalty
-│   │   └── kernels.py              # Thư viện Kernel Math (RFF)
+│   │   ├── mlp.py                  # Backbone Deep Causal (Encoder, GMM, PNL Decoder)
+│   │   ├── gppom_hsic.py           # Logic hàm mất mát (ALM, NOTEARS/DAGMA Penalty)
+│   │   └── kernels.py              # Thư viện RFF cho FastHSIC
 │   ├── models/
-│   │   ├── deepanm.py              # Class DeepANM Bao bọc bề mặt
-│   │   └── trainer.py              # Vòng lặp ALM Dynamics và Rho Annealing
+│   │   ├── deepanm.py              # API chính xử lý huấn luyện và dự đoán
+│   │   └── trainer.py              # Xử lý vòng lặp Augmented Lagrangian
 │   └── utils/
-│       └── visualize.py            # Công cụ render Causal Graph với NetworkX
+│       └── visualize.py            # Hàm vẽ đồ thị plot_dag() dựa trên NetworkX
 ├── examples/
-│   ├── sachs_eval.py               # Script Test cấu trúc Sachs
-│   └── boston_global_discovery.py  # Script Test Benchmark Boston Housing
+│   ├── sachs_eval.py               # Chạy thử nghiệm mạng tế bào sinh học Sachs
+│   └── boston_global_discovery.py  # Chạy thử nghiệm đánh giá Boston Housing
 └── tests/
-    └── test_core.py                # UnitTest cực kỳ chi tiết cho kiến trúc GMM, h(W) và MLP
+    └── test_core.py                # Bộ Unit Test sử dụng Pytest
 ```
 
 ---
 
-## 📜 Tài Liệu Học Thuật Tham Khảo (References)
+## 📜 Tài Liệu Học Thuật Xin Chân Thành Cảm Ơn
 
-1. **Bello, K. et al. (2022).** *"DAGMA: Learning DAGs via M-matrices and a Log-Determinant Acyclicity Characterization."* (Nền tảng chuỗi Polynomial của lõi GPPOM).
-2. **Ge, T. et al. (2023).** *"Causica (DECI) - Deep End-to-end Causal Inference."* Microsoft Research (Nền tảng GMM Flow và Variational Noise Distribution).
-3. **Zheng, X. et al. (2018).** *"DAGs with NO TEARS: Continuous Optimization for Structure Learning."* NeurIPS (Nền tảng phạt L2 Constraint).
-4. **Zhang, K. & Hyvarinen, A. (2009).** *"On the Identifiability of the Post-Nonlinear Causal Model."* UAI.
-5. **Rahimi, A. & Recht, B. (2007).** *"Random Features for Large-Scale Kernel Machines (RFF)."* NeurIPS.
+DeepANM trân trọng ghi nhận và xin gửi lời cảm ơn tới kiến thức quý giá từ các tác giả của những công trình sau:
+
+1. **amber0309** và kho mã nguồn [ANM-MM](https://github.com/amber0309/ANM-MM) đã cung cấp khung sườn ban đầu của bài toán VAE Clustering.
+2. **Bello, K. et al. (2022).** *"DAGMA: Learning DAGs via M-matrices and a Log-Determinant Acyclicity Characterization."*
+3. **Ge, T. et al. (2023).** *"Causica (DECI) - Deep End-to-end Causal Inference."* (Microsoft Research).
+4. **Zheng, X. et al. (2018).** *"DAGs with NO TEARS: Continuous Optimization for Structure Learning."* NeurIPS.
+5. **Rahimi, A. & Recht, B. (2007).** *"Random Features for Large-Scale Kernel Machines."* NeurIPS.
+6. **Zhang, K. & Hyvarinen, A. (2009).** *"On the Identifiability of the Post-Nonlinear Causal Model."* UAI.
 
 ---
 
 ## License
-MIT License. Tự do sửa đổi, phân phối và sử dụng trong mọi mục đích.
+Dự án được phân phối dưới giấy phép [MIT](LICENSE). Vui lòng trích dẫn hoặc giữ nguồn khi bạn phát triển lại từ dự án này cũng như các công trình tiền nhiệm.
