@@ -65,20 +65,18 @@ def test_dag_penalty():
     core = GPPOMC_lnhsic_Core(x_dim=2, y_dim=0, n_clusters=2, hidden_dim=16, lda=1.0, device='cpu')
     
     # A zero matrix is acyclic (DAG)
-    core.W_dag.data = torch.zeros(2, 2)
-    assert core.get_dag_penalty().item() < 1e-6 
+    core.W_val.data = torch.ones(2, 2)
+    core.W_logits.data = torch.zeros(2, 2) # Equivalent to W_dag = 0.5, let's just construct artificial mask for test
+    assert core.get_dag_penalty(W_mask=torch.zeros(2, 2)).item() < 1e-6 
     
     # An acyclic chain (0 -> 1)
-    core.W_dag.data = torch.tensor([[0.0, 1.0], [0.0, 0.0]])
-    assert core.get_dag_penalty().item() < 1e-6
+    assert core.get_dag_penalty(W_mask=torch.tensor([[0.0, 1.0], [0.0, 0.0]])).item() < 1e-6
     
     # A cyclic matrix (0 -> 1 -> 0)
-    core.W_dag.data = torch.tensor([[0.0, 1.0], [1.0, 0.0]])
-    assert core.get_dag_penalty().item() > 0.5 
+    assert core.get_dag_penalty(W_mask=torch.tensor([[0.0, 1.0], [1.0, 0.0]])).item() > 0.5 
     
     # Diagonal element (self-loop) is physically masked out, penalty should be 0 because constraint_mask
-    core.W_dag.data = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
-    assert core.get_dag_penalty().item() < 1e-6
+    assert core.get_dag_penalty(W_mask=torch.tensor([[1.0, 0.0], [0.0, 1.0]])).item() < 1e-6
 
 def test_gppomc_core_forward():
     """Verify forward logic of Core Engine (GPPOMC + FastHSIC + DECI NLL)"""
@@ -121,13 +119,13 @@ def test_deepanm_integration():
     model = DeepANM()
     model.fit(data, epochs=2, batch_size=25, verbose=False)
     
-    # Verify adjacency matrix extractors
-    W, W_bin = model.get_dag_matrix(threshold=0.01) 
+    # Verify adjacency matrix extractors (raw W, no X)
+    W, W_bin = model.get_dag_matrix()
     assert W.shape == (d, d)
     assert W_bin.shape == (d, d)
-    
-    # Verify ATE-assisted matrix extractor
-    ATE_np, W_bin_ate = model.get_dag_matrix(threshold=0.01, X=data)
+
+    # Verify Adaptive LASSO-assisted matrix extractor
+    ATE_np, W_bin_ate = model.get_dag_matrix(X=data)
     assert ATE_np.shape == (d, d)
     assert W_bin_ate.shape == (d, d)
     

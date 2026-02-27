@@ -73,7 +73,6 @@ def run_synthetic_test():
     prob_matrix, avg_W_norm = model.fit_bootstrap(
         data,               
         n_bootstraps=5,
-        threshold=0.01,
         epochs=200,      
         lr=5e-3,          
         batch_size=256,

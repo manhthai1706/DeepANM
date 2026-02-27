@@ -73,36 +73,57 @@ class FastHSIC(nn.Module):
 
 class GPPOMC_lnhsic_Core(nn.Module):
     """DeepANM Core Logic / Logic cốt lõi của DeepANM"""
-    def __init__(self, x_dim, y_dim, n_clusters, hidden_dim, lda, device):
+    def __init__(self, x_dim, y_dim, n_clusters, hidden_dim, lda, device, causal_order=None):
         super().__init__()
-        self.lda = lda # HSIC weight / Trọng số HSIC
-        self.device = device # Device / Thiết bị
-        self.d = x_dim + y_dim # Total vars / Tổng số biến
-        
-        # Learnable Adjacency (DAG NOTEARS) / Ma trận kề học được, khởi tạo phân phối U(-0.01, 0.01) để phá vỡ tính đối xứng
-        self.W_dag = nn.Parameter(torch.empty(self.d, self.d).uniform_(-0.01, 0.01))
-        
-        # Mask bảo vệ cấu trúc (Cấm Self-loop và cho phép thêm luật Exogenous Prior)
-        self.register_buffer('constraint_mask', 1 - torch.eye(self.d, device=device))
-        
-        # Backbone MLP / Khung mạng MLP
-        self.MLP = mlp.MLP(input_dim=self.d, hidden_dim=hidden_dim, 
-                          output_dim=self.d, n_clusters=n_clusters, device=device)
-        
-        self.gp_phi_z = RFFGPLayer(n_clusters, n_features=64) # Z mapping / Ánh xạ Z siêu nhẹ
-        self.gp_phi_x = RFFGPLayer(self.d, n_features=64) # X mapping / Ánh xạ X siêu nhẹ
-        self.linear_head = nn.Linear(64, self.d, bias=False) # Head / Đầu ra tuyến tính
-        
-        self.fast_hsic = FastHSIC(self.d, n_clusters, n_features=64) # Cluster HSIC / HSIC phân cụm
-        self.pnl_hsic = FastHSIC(self.d, self.d, n_features=64) # PNL noise HSIC / HSIC nhiễu PNL
+        self.lda = lda
+        self.device = device
+        self.d = x_dim + y_dim
 
-    def get_dag_penalty(self):
+        # --- Gumbel Gate Parameters ---
+        self.W_val = nn.Parameter(torch.empty(self.d, self.d).uniform_(-0.01, 0.01))
+        self.W_logits = nn.Parameter(torch.full((self.d, self.d), -1.5))
+
+        # --- Topological Mask (Pha 1 RESIT-inspired) ---
+        # Nếu có causal_order: chỉ cho phép cạnh đúng hướng tự tiên → hậu (tạo ra Strict Triangular Mask)
+        # Nếu không: dùng mask cơ bản (không self-loop)
+        if causal_order is not None and len(causal_order) == self.d:
+            # position[var] = vị trí trong thứ tự tô-pô
+            position = {var: idx for idx, var in enumerate(causal_order)}
+            topo = torch.zeros(self.d, self.d)
+            for i in range(self.d):
+                for j in range(self.d):
+                    if i != j and position[i] < position[j]:
+                        topo[i, j] = 1.0
+            self.register_buffer('topo_mask', topo.to(device))
+        else:
+            # Fallback: chỉ cấm self-loop (giống cũ)
+            self.register_buffer('topo_mask', (1 - torch.eye(self.d)).to(device))
+
+        # Giữ constraint_mask để tương thích ngược với get_dag_penalty
+        self.register_buffer('constraint_mask', self.topo_mask.clone())
+
+        # Backbone MLP
+        self.MLP = mlp.MLP(input_dim=self.d, hidden_dim=hidden_dim,
+                           output_dim=self.d, n_clusters=n_clusters, device=device)
+
+        self.gp_phi_z = RFFGPLayer(n_clusters, n_features=64)
+        self.gp_phi_x = RFFGPLayer(self.d, n_features=64)
+        self.linear_head = nn.Linear(64, self.d, bias=False)
+
+        self.fast_hsic = FastHSIC(self.d, n_clusters, n_features=64)
+        self.pnl_hsic = FastHSIC(self.d, self.d, n_features=64)
+    @property
+    def W_dag(self):
+        """Khôi phục W_dag ảo để tương thích ngược với API bên ngoài (visualize, get_dag_matrix)"""
+        return torch.sigmoid(self.W_logits) * self.W_val
+
+    def get_dag_penalty(self, W_mask):
         r"""
         Tối ưu hóa: Thay vì chạy vòng lặp nhân ma trận O(d) lần trong Python, 
         ta giải tích trực tiếp hàm Log-Determinant của DAGMA bằng lõi C++ của PyTorch.
         Tốc độ tính toán nhanh hơn cực kì nhiều lần, không tốn RAM overhead.
         """
-        W_dag_masked = self.W_dag * self.constraint_mask
+        W_dag_masked = W_mask * self.constraint_mask
         A = W_dag_masked * W_dag_masked
         
         I = torch.eye(self.d, device=A.device)
@@ -112,8 +133,30 @@ class GPPOMC_lnhsic_Core(nn.Module):
         return h
 
     def forward(self, batch_data, temperature=1.0):
-        # Thiết luật A_ii = 0 (Bắt buộc không có Self-Loop cho DAG) và Cấm ngược chiểu vào Exogenous
-        W_dag_masked = self.W_dag * self.constraint_mask
+        # ----------------------------------------------------
+        # GUMBEL-SIGMOID HARD MASKING (Straight-Through Estimator)
+        # Giết chết hoàn toàn Cạnh rác (False Positives)
+        # ----------------------------------------------------
+        # Phân phối xác suất biên
+        W_prob = torch.sigmoid(self.W_logits)
+        
+        if self.training:
+            # Tung đồng xu Gumbel (Relaxed Bernoulli)
+            U = torch.rand_like(self.W_logits)
+            Z = torch.log(U + 1e-10) - torch.log(1 - U + 1e-10)
+            W_soft_mask = torch.sigmoid((self.W_logits + Z) / temperature)
+            
+            # Ép cứng về 0.0 hoặc 1.0 (Hard Mask)
+            W_hard_mask = (W_soft_mask > 0.5).float()
+            
+            # Straight-Through Estimator: Trả về Hard Mask nhưng Gradient đi qua Soft Mask
+            W_mask = W_hard_mask.detach() - W_soft_mask.detach() + W_soft_mask
+        else:
+            # Khi Inference, chỉ những cạnh có xác suất > 50% mới được mở cổng
+            W_mask = (W_prob > 0.5).float()
+
+        # Ma trận chung cuộc: Trọng_số_thực_tế * Mask_Nhị_phân * TOPO_MASK (Strict DAG)
+        W_dag_masked = self.W_val * W_mask * self.topo_mask
         
         # Mask inputs with DAG matrix / Che đầu vào bằng ma trận DAG (Chắc chắn loại bỏ đường chéo)
         masked_input = batch_data @ W_dag_masked
@@ -126,7 +169,7 @@ class GPPOMC_lnhsic_Core(nn.Module):
         phi = self.gp_phi_z(z_soft) * self.gp_phi_x(masked_input) # X đã được filter bởi graph liên hệ
         y_pred_gp = self.linear_head(phi) + out['mu'] # Hợp nhất Nonlinear (GP) + Linear Baseline (mu)
         
-        loss_dag = self.get_dag_penalty()
+        loss_dag = self.get_dag_penalty(W_mask * self.W_val)
         
         # Lỗi MSE Hồi Quy Cấu Trúc
         loss_reg = F.mse_loss(y_pred_gp, batch_data)
@@ -141,9 +184,8 @@ class GPPOMC_lnhsic_Core(nn.Module):
         # Ràng buộc cơ chế: Cơ chế Z (z_soft) phải phụ thuộc chặt chẽ với dữ liệu X
         loss_hsic_clu = self.fast_hsic(batch_data, z_soft)
         
-        # L1 Regularization: Giải thuật LASSO làm cho ma trận DAG cực kì thưa thớt (Sparse) 
-        # L2 Regularization: Đóng góp của NOTEARS, chống quá ngưỡng Gradient của từng trọng số đơn
-        l1_loss = torch.sum(torch.abs(W_dag_masked))
+        # Sparsity penalty: Ɛp logits xuống âm sâu trong khộ tô-pô đã xác định
+        l1_loss = torch.sum(W_prob * self.topo_mask)
         l2_loss = 0.5 * torch.sum(W_dag_masked ** 2)
         
         # Log-Likelihood dựa trên luồng Nhiễu GMM của kiến trúc Causica/DECI

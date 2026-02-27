@@ -54,7 +54,7 @@ class DeepANMTrainer:
             # Khởi tạo ma trận rỗng để tính h(W) chuẩn
             W_est = self.model.core.W_dag.detach()
             # NOTEARS Ràng buộc chống chu kỳ h(W) = tr(e^(W * W)) - d
-            curr_h_val = self.model.core.get_dag_penalty().item()
+            curr_h_val = self.model.core.get_dag_penalty(self.model.core.W_dag).item()
             
             # Cập nhật Rho (Multiplier cho L2) và Alpha (Multiplier cho Lagrangian) mỗi 10 epoch 
             # để ép nghiệm bài toán dần đi về h(W) = 0
@@ -76,7 +76,7 @@ class DeepANMTrainer:
                 )
                 
                 # Lấy Penalty h(W) sinh động trên Computation Graph
-                h_term = self.model.core.get_dag_penalty()
+                h_term = self.model.core.get_dag_penalty(self.model.core.W_dag)
                 
                 # Hàm mục tiêu mới với Augmented Lagrangian
                 # Obj = F(W) + alpha * h(W) + 0.5 * rho * h(W)^2

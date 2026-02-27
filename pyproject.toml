@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Manh Thai", email = "manht@example.com" }
+    { name = "Manh Thai", email = "manhthai170@gmail.com" }
 ]
 dependencies = [
     "torch>=2.0.0",

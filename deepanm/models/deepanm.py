@@ -7,6 +7,36 @@ import torch
 import torch.nn as nn
 
 
+def _order_from_topo_mask(topo_mask: np.ndarray, n_vars: int) -> list:
+    """
+    Reconstruct the causal order (root-first list) from a stored triangular topo_mask.
+    Uses topological sort (Kahn's algorithm) on the implied DAG.
+    """
+    # topo_mask[i, j] = 1 means i is an ancestor of j (edge i→j allowed)
+    # Build adjacency: parents of each node
+    in_deg = {j: 0 for j in range(n_vars)}
+    children = {i: [] for i in range(n_vars)}
+    for i in range(n_vars):
+        for j in range(n_vars):
+            if topo_mask[i, j] > 0.5:
+                children[i].append(j)
+                in_deg[j] += 1
+
+    queue = [v for v in range(n_vars) if in_deg[v] == 0]
+    order = []
+    while queue:
+        v = queue.pop(0)
+        order.append(v)
+        for u in children[v]:
+            in_deg[u] -= 1
+            if in_deg[u] == 0:
+                queue.append(u)
+
+    # If cycle detected (shouldn't happen), fall back to range
+    if len(order) < n_vars:
+        return list(range(n_vars))
+    return order
+
 class DeepANM(nn.Module):
     """
     Deep Additive Noise Model for multivariate causal graph discovery.
@@ -33,11 +63,26 @@ class DeepANM(nn.Module):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_core(self, x_dim):
+    def _build_core(self, x_dim, X=None, verbose=True):
         from deepanm.core.gppom_hsic import GPPOMC_lnhsic_Core
         self.x_dim = x_dim
+
+        # --- Phase 1: RESIT-inspired Topological Ordering ---
+        causal_order = None
+        if X is not None:
+            from deepanm.core.toposort import hsic_greedy_order
+            if verbose:
+                print("[TopoSort] Estimating causal order via HSIC greedy search...")
+            causal_order = hsic_greedy_order(X, verbose=False)
+            if verbose:
+                order_str = " → ".join(f"X{i}" for i in causal_order)
+                print(f"[TopoSort] Discovered order: {order_str}")
+                print(f"[TopoSort] Only edges consistent with this order will be learned.")
+
+        # --- Phase 2: Build Neural Core with Topo Mask ---
         self.core = GPPOMC_lnhsic_Core(
-            x_dim, 0, self.n_clusters, self.hidden_dim, self.lda, self.device
+            x_dim, 0, self.n_clusters, self.hidden_dim, self.lda,
+            self.device, causal_order=causal_order
         )
         self.to(self.device)
 
@@ -64,22 +109,25 @@ class DeepANM(nn.Module):
         X = self._preprocess(X, apply_isolation=apply_isolation, apply_quantile=apply_quantile)
 
         if self.core is None:
-            self._build_core(X.shape[1])
+            self._build_core(X.shape[1], X=X, verbose=verbose)
         else:
-            # Reset core so each fit() starts fresh
-            self._build_core(X.shape[1])
+            self._build_core(X.shape[1], X=X, verbose=verbose)
 
         trainer = DeepANMTrainer(self, lr=lr)
         self.history = trainer.train(X, epochs=epochs, batch_size=batch_size, verbose=verbose)
         return self.history
 
-    def fit_bootstrap(self, X, n_bootstraps=5, threshold=0.015,
+    def fit_bootstrap(self, X, n_bootstraps=5,
                       epochs=200, batch_size=64, lr=5e-3, verbose=True,
                       apply_quantile=False, apply_isolation=False):
         """
         Stability Selection via Bootstrap resampling.
+
+        Edge detection uses Adaptive LASSO per bootstrap round instead of
+        a fixed threshold — results are statistically principled and robust.
+
         Returns (prob_matrix, avg_ATE_matrix) where prob_matrix[i,j]
-        is the fraction of bootstrap runs that detected edge i->j.
+        is the fraction of bootstrap runs that confirmed edge i→j.
         """
         if isinstance(X, torch.Tensor):
             X = X.cpu().numpy()
@@ -94,36 +142,52 @@ class DeepANM(nn.Module):
             if verbose:
                 print(f"[Bootstrap] Round {b+1}/{n_bootstraps}...")
 
-            # Resample with replacement
             boot_data = X[np.random.choice(n_samples, n_samples, replace=True)]
 
-            # Fresh model each round to avoid prior bias
             self.core = None
             self.fit(boot_data, epochs=epochs, batch_size=batch_size, lr=lr, verbose=False)
 
-            W_raw, W_bin = self.get_dag_matrix(threshold=threshold, X=boot_data)
-            agg_W   += W_raw
+            # Adaptive LASSO edge selection (no fixed threshold)
+            ATE, W_bin = self.get_dag_matrix(X=boot_data)
+            agg_W   += ATE
             agg_bin += W_bin
 
         return agg_bin / n_bootstraps, agg_W / n_bootstraps
 
-    def get_dag_matrix(self, threshold=0.1, X=None):
+    def get_dag_matrix(self, X=None):
         """
         Extract the learned causal adjacency matrix.
-        
-        If X is provided, uses Neural ATE (Jacobian) to confirm edge strengths.
-        Returns (W_raw, W_binary).
+
+        If X is provided, runs Adaptive LASSO edge selection using the
+        Neural ATE Jacobian combined with the discovered causal order.
+        This replaces the brittle fixed threshold with statistically
+        principled model selection.
+
+        Returns
+        -------
+        If X is provided: (ATE_matrix, W_binary_adaptive_lasso)
+        If X is None:     (W_raw, W_binary_by_gate_prob)
         """
         with torch.no_grad():
-            W_dag_masked = self.core.W_dag * self.core.constraint_mask
+            W_dag_masked = self.core.W_dag * self.core.topo_mask
             W = W_dag_masked.detach().cpu().numpy()
 
             if X is not None:
-                ATE = self.core.MLP.get_global_ate_matrix(X, W_dag=W_dag_masked).cpu().numpy()
-                W_bin = ((np.abs(W) > threshold) & (np.abs(ATE) > 1e-4)).astype(float)
+                # Neural ATE Jacobian
+                ATE = self.core.MLP.get_global_ate_matrix(
+                    X, W_dag=W_dag_masked).cpu().numpy()
+
+                # Reconstruct causal order from topo_mask (triangular structure)
+                causal_order = _order_from_topo_mask(
+                    self.core.topo_mask.cpu().numpy(), self.x_dim)
+
+                # Adaptive LASSO + ATE double gate
+                from deepanm.utils.adaptive_lasso import adaptive_lasso_from_ate
+                W_bin = adaptive_lasso_from_ate(ATE, X, causal_order)
                 return ATE, W_bin
             else:
-                return W, (np.abs(W) > threshold).astype(float)
+                # Fallback: return raw W only (no threshold applied)
+                return W, (torch.sigmoid(self.core.W_logits).detach().cpu().numpy() > 0.5).astype(float) * self.core.topo_mask.cpu().numpy()
 
     def set_exogenous(self, exog_indices):
         """
