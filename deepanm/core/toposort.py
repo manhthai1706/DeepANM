@@ -113,17 +113,11 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     if n_vars == 1:
         return [0]
 
-    # QuantileTransform to Gaussian: handles skewness and heavy tails
-    # (critical for Sachs-like data where std ranges from 43 to 644)
-    try:
-        from sklearn.preprocessing import QuantileTransformer
-        qt = QuantileTransformer(output_distribution='normal', random_state=42)
-        X_scaled = qt.fit_transform(X)
-    except Exception:
-        # Fallback: standard scaling
-        std = X.std(axis=0)
-        std[std < 1e-8] = 1.0
-        X_scaled = (X - X.mean(axis=0)) / std
+    # Simple standardization (idempotent if data is already scaled).
+    # QuantileTransform is handled by DeepANM._preprocess() before calling this.
+    std = X.std(axis=0)
+    std[std < 1e-8] = 1.0
+    X_scaled = (X - X.mean(axis=0)) / std
 
     remaining = list(range(n_vars))
     reverse_order = []

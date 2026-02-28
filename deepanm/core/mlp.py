@@ -215,10 +215,19 @@ class MLP(nn.Module):
 
     def get_global_ate_matrix(self, X, W_dag=None, eps=1e-3):
         """
-        Sử dụng ATE để khám phá Cấu trúc Toàn cục (Global Discovery Assist).
-        Chạy mô phỏng do-calculus (can thiệp) trên toàn bộ không gian biến:
-        Đo lường độ thay đổi của toàn bộ hệ thống (Y_j) khi ta tác động eps vào X_i.
-        Jacobian Matrix ATE_ij = partial f_j / partial x_i.
+        Compute Direct Causal Effect matrix for edge selection.
+
+        Strategy (batched, O(1) forward passes):
+            1. base_input = X @ W_dag  (what each variable's SEM input looks like)
+            2. For each target variable j, perturb base_input[:, j] += eps
+            3. sensitivity[j] = mean( SEM(perturbed)_j - SEM(base)_j ) / eps
+               = how sensitive is output j to a unit change in its own input
+            4. ATE[i, j] = sensitivity[j] * W_dag[i, j]
+               = direct contribution of parent i to child j
+
+        This fixes the old approach where intervention on X_raw leaked eps
+        through ALL W_dag columns simultaneously, conflating direct and
+        indirect effects.
         """
         self.eval()
         with torch.no_grad():
@@ -226,43 +235,42 @@ class MLP(nn.Module):
                 X_ten = torch.from_numpy(X).float().to(self.device)
             else:
                 X_ten = X.clone().float().to(self.device)
-                
+
             n_samples, n_vars = X_ten.shape
-            
-            # Tính Control State (Giá trị dự đoán mạng SCM Gốc)
+
+            # Base prediction through DAG-masked SEM
             if W_dag is not None:
-                # Hệ thống DAG: Biến j chỉ nhận input từ Parents của nó (X @ W_dag)
                 base_input = X_ten @ W_dag
             else:
                 base_input = X_ten
-                
+
             y_base = self.sem(base_input)
             y_base = self.pnl_transform.inverse(y_base)
-            # Tối ưu song song hóa toàn diện O(1) thay vì Loop O(V): Batched Intervention
-            X_treat_batch = X_ten.unsqueeze(0).repeat(n_vars, 1, 1) # Size: [n_vars, n_samples, n_vars]
-            
-            # Tiêm nhiễu chéo vào đường chéo (Can thiệp lên chính nó)
-            intervention_eps = torch.eye(n_vars, device=self.device).unsqueeze(1) * eps
-            X_treat_batch += intervention_eps
-            
-            # Cán phẳng về Batch khổng lồ để tống qua Neural Net 1 lần duy nhất
-            X_treat_flat = X_treat_batch.view(n_vars * n_samples, n_vars)
-            
-            if W_dag is not None:
-                treat_input_flat = X_treat_flat @ W_dag
-            else:
-                treat_input_flat = X_treat_flat
-                
-            y_treat_flat = self.sem(treat_input_flat)
+
+            # Batched intervention: perturb each column of base_input by eps
+            treat_batch = base_input.unsqueeze(0).repeat(n_vars, 1, 1)  # (d, n, d)
+            perturbation = torch.eye(n_vars, device=self.device).unsqueeze(1) * eps
+            treat_batch += perturbation  # treat_batch[j] has column j perturbed
+
+            treat_flat = treat_batch.view(n_vars * n_samples, n_vars)
+            y_treat_flat = self.sem(treat_flat)
             y_treat_flat = self.pnl_transform.inverse(y_treat_flat)
-            
-            # Phục hồi Tensor thành [n_vars, n_samples, n_vars]
-            y_treat_batch = y_treat_flat.view(n_vars, n_samples, n_vars)
-            
-            # Tính đạo hàm nhân quả nhanh bằng phép Vector Subtraction
-            ate_matrix = torch.mean(y_treat_batch - y_base.unsqueeze(0), dim=1) / eps
-            
-            # Hệ thống nhân quả (DAG) cấm 1 biến tạo tác động lên chính nó
+            y_treat = y_treat_flat.view(n_vars, n_samples, n_vars)
+
+            # sensitivity[j] = how much output j changes when input j changes by eps
+            # Only the diagonal (j→j) matters for direct effect
+            sensitivity = torch.zeros(n_vars, device=self.device)
+            for j in range(n_vars):
+                sensitivity[j] = (y_treat[j, :, j] - y_base[:, j]).mean() / eps
+
+            # Direct ATE: sensitivity[j] × W_dag[i,j] for each parent i
+            if W_dag is not None:
+                ate_matrix = sensitivity.unsqueeze(0) * W_dag  # (1,d) * (d,d)
+            else:
+                # No DAG info: fall back to full batched Jacobian
+                ate_matrix = torch.mean(y_treat - y_base.unsqueeze(0), dim=1) / eps
+
             ate_matrix.fill_diagonal_(0.0)
-            
+
         return ate_matrix
+
