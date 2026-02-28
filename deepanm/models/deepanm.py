@@ -63,26 +63,40 @@ class DeepANM(nn.Module):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _build_core(self, x_dim, X=None, verbose=True):
+    def _build_core(self, x_dim, X=None, causal_order=None, verbose=True):
+        """
+        Build the GPPOMC core engine.
+
+        Priority:
+          1. causal_order passed directly  → skip TopoSort (Fix E, fastest)
+          2. X provided but no order       → run TopoSort now
+          3. Neither                       → no topo mask (fallback)
+        """
         from deepanm.core.gppom_hsic import GPPOMC_lnhsic_Core
         self.x_dim = x_dim
 
-        # --- Phase 1: RESIT-inspired Topological Ordering ---
-        causal_order = None
-        if X is not None:
+        # Determine causal order (TopoSort or pre-computed)
+        if causal_order is not None:
+            # [Fix E]: reuse pre-computed order — no TopoSort!
+            order = causal_order
+            if verbose:
+                order_str = " → ".join(f"X{i}" for i in order)
+                print(f"[TopoSort] Using cached order: {order_str}")
+        elif X is not None:
             from deepanm.core.toposort import hsic_greedy_order
             if verbose:
-                print("[TopoSort] Estimating causal order via HSIC greedy search...")
-            causal_order = hsic_greedy_order(X, verbose=False)
+                print("[TopoSort] Estimating causal order via HSIC (RFF, Sink-First)...")
+            order = hsic_greedy_order(X, verbose=False)
             if verbose:
-                order_str = " → ".join(f"X{i}" for i in causal_order)
+                order_str = " → ".join(f"X{i}" for i in order)
                 print(f"[TopoSort] Discovered order: {order_str}")
-                print(f"[TopoSort] Only edges consistent with this order will be learned.")
+        else:
+            order = None   # No topo mask — fallback to no-self-loop only
 
-        # --- Phase 2: Build Neural Core with Topo Mask ---
+        # Build Core with Topo Mask
         self.core = GPPOMC_lnhsic_Core(
             x_dim, 0, self.n_clusters, self.hidden_dim, self.lda,
-            self.device, causal_order=causal_order
+            self.device, causal_order=order
         )
         self.to(self.device)
 
@@ -102,16 +116,15 @@ class DeepANM(nn.Module):
     # ------------------------------------------------------------------
 
     def fit(self, X, epochs=200, batch_size=64, lr=2e-3, verbose=True,
-            apply_quantile=False, apply_isolation=False):
+            apply_quantile=False, apply_isolation=False, _precomputed_order=None):
         """Train on raw data X (numpy array, shape [n_samples, n_vars])."""
         from deepanm.models.trainer import DeepANMTrainer
 
         X = self._preprocess(X, apply_isolation=apply_isolation, apply_quantile=apply_quantile)
 
-        if self.core is None:
-            self._build_core(X.shape[1], X=X, verbose=verbose)
-        else:
-            self._build_core(X.shape[1], X=X, verbose=verbose)
+        # [Fix E]: accept pre-computed order to skip TopoSort
+        self._build_core(X.shape[1], X=None if _precomputed_order is not None else X,
+                         causal_order=_precomputed_order, verbose=verbose)
 
         trainer = DeepANMTrainer(self, lr=lr)
         self.history = trainer.train(X, epochs=epochs, batch_size=batch_size, verbose=verbose)
@@ -123,11 +136,11 @@ class DeepANM(nn.Module):
         """
         Stability Selection via Bootstrap resampling.
 
-        Edge detection uses Adaptive LASSO per bootstrap round instead of
-        a fixed threshold — results are statistically principled and robust.
+        [Fix E]: TopoSort runs ONCE on the full dataset before the loop.
+        The causal order is cached and reused for all n_bootstraps rounds,
+        saving ~(n_bootstraps-1) redundant TopoSort calls.
 
-        Returns (prob_matrix, avg_ATE_matrix) where prob_matrix[i,j]
-        is the fraction of bootstrap runs that confirmed edge i→j.
+        Returns (prob_matrix, avg_ATE_matrix).
         """
         if isinstance(X, torch.Tensor):
             X = X.cpu().numpy()
@@ -138,6 +151,16 @@ class DeepANM(nn.Module):
         agg_W   = np.zeros((n_vars, n_vars))
         agg_bin = np.zeros((n_vars, n_vars))
 
+        # [Fix E]: TopoSort once on FULL data — not inside the bootstrap loop
+        from deepanm.core.toposort import hsic_greedy_order
+        if verbose:
+            print("[TopoSort] Running ONCE on full dataset before bootstrap...")
+        self._causal_order = hsic_greedy_order(X, verbose=False)
+        if verbose:
+            order_str = " → ".join(f"X{i}" for i in self._causal_order)
+            print(f"[TopoSort] Causal order: {order_str}")
+            print(f"[TopoSort] This order will be reused for all {n_bootstraps} bootstrap rounds.")
+
         for b in range(n_bootstraps):
             if verbose:
                 print(f"[Bootstrap] Round {b+1}/{n_bootstraps}...")
@@ -145,7 +168,9 @@ class DeepANM(nn.Module):
             boot_data = X[np.random.choice(n_samples, n_samples, replace=True)]
 
             self.core = None
-            self.fit(boot_data, epochs=epochs, batch_size=batch_size, lr=lr, verbose=False)
+            # Pass pre-computed order — skip TopoSort inside fit()
+            self.fit(boot_data, epochs=epochs, batch_size=batch_size, lr=lr,
+                     verbose=False, _precomputed_order=self._causal_order)
 
             # Adaptive LASSO edge selection (no fixed threshold)
             ATE, W_bin = self.get_dag_matrix(X=boot_data)
