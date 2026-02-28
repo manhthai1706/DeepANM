@@ -1,146 +1,226 @@
-# DeepANM: A Deep Learning Approach to Additive Noise Models for Causal Discovery
+<div align="center">
 
-[![Architecture](https://img.shields.io/badge/Architecture-Details-blueviolet?style=flat-square)](ARCH.md)
+# DeepANM
+
+**Deep Additive Noise Model for Nonlinear Causal Discovery**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg?style=flat-square)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg?style=flat-square)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c?style=flat-square)](https://pytorch.org)
+[![Tests](https://img.shields.io/badge/tests-7%20passed-brightgreen?style=flat-square)](#testing)
 
-**DeepANM** (Deep Additive Noise Model) là một thư viện Python mã nguồn mở phục vụ cho bài toán Khám phá Nhân quả (Causal Discovery) từ dữ liệu quan sát. 
-
-Dự án này được khởi tạo và truyền cảm hứng rất lớn từ framework **ANM-MM** (Additive Noise Model - Mixture Model) của tác giả [amber0309](https://github.com/amber0309/ANM-MM). Trong quá trình học hỏi và mở rộng, chúng tôi đã tích hợp thêm một số ý tưởng toán học và kiến trúc học sâu từ các bài báo khoa học nổi bật như **DECI (Causica)**, **NOTEARS**, và **DAGMA** nhằm nỗ lực cải thiện việc xử lý nhiễu phi tuyến tính và tối ưu hóa đồ thị DAG.
-
-Mục tiêu của DeepANM là tạo ra một công cụ thực nghiệm, cung cấp các hàm API dễ sử dụng cho những ai đang tìm hiểu và nghiên cứu về AI Nhân quả.
+</div>
 
 ---
 
-## 🌟 Ý Tưởng và Nguồn Cảm Hứng (Inspirations)
+**DeepANM** is a Python library for learning causal graphs from observational data using deep learning. It combines topological ordering, neural structural equation modeling, and Adaptive LASSO edge selection into a unified, statistically principled pipeline.
 
-DeepANM không phải là một thuật toán hoàn toàn mới, mà là sự tổng hợp và tinh chỉnh từ những công trình xuất sắc đi trước:
+## How It Works
 
-### 1. Mô hình Nhiễu Dị Thể (Lấy cảm hứng từ DECI / Causica)
-Thay vì sử dụng các giả định nhiễu Gaussian cơ bản, mô hình tích hợp `HeterogeneousNoiseModel`. Ý tưởng này học hỏi từ kiến trúc **DECI** (Deep End-to-end Causal Inference) của Microsoft Research, sử dụng cấu trúc Gaussian Mixture Model (GMM) và thủ thuật Log-Sum-Exp. Mục đích là để mô hình có thể xấp xỉ tốt hơn các loại nhiễu phức tạp, lệch đuôi thường gặp trong dữ liệu thực tế.
+DeepANM operates in three phases:
 
-### 2. Ràng Buộc Đồ Thị Hướng Không Chu Trình (NOTEARS & DAGMA)
-Để đảm bảo ma trận trọng số (Adjacency Matrix) học được tạo thành một đồ thị DAG hợp lệ (không có chu trình), DeepANM áp dụng kỹ thuật tối ưu hóa liên tục (Continuous Optimization):
-- **NOTEARS** (Zheng et al., 2018): Đặt nền móng cho việc chuyển bài toán tìm kiếm tổ hợp (combinatorial) khó khăn thành biểu thức toán học khả vi qua hàm vết (Trace exponential constraint). Chúng tôi cũng sử dụng L1/L2 Regularization từ bài báo này để làm đồ thị thưa thớt (sparse) hơn.
-- **DAGMA** (Bello et al., 2022): Để giảm thiểu rủi ro biến mất gradient (Vanishing Gradients) khi đồ thị lớn có các chu trình dài, DeepANM tham khảo cách xấp xỉ Log-Determinant bằng đa thức (Polynomial series) của DAGMA, giúp việc tính toán Gradient ổn định hơn.
+```
+Phase 1: Topological Ordering (HSIC Greedy — Sink-First)
+    Raw data X ──► Discover causal order [X₀ → X₂ → X₁ → X₃]
 
-### 3. Đánh Giá Tính Độc Lập bằng FastHSIC (RFF)
-Hàm mục tiêu cốt lõi của Additive Noise Models là đảm bảo phần dư (noise/residuals) độc lập thống kê với nguyên nhân (cause). Hệ thống sử dụng Hilbert-Schmidt Independence Criterion (**HSIC**). Để tăng tốc HSIC từ độ phức tạp O(N²) xuống O(N), chúng tôi đã tham khảo và áp dụng kỹ thuật **Random Fourier Features (RFF)** (Rahimi & Recht, 2007).
+Phase 2: Neural Training (Augmented Lagrangian)
+    X + causal order ──► Learn DAG weight matrix W, noise distributions
 
-### 4. Neural ATE Jacobian
-Để xác nhận lại độ mạnh của các liên kết nhân quả, DeepANM thử nghiệm áp dụng Đạo hàm Jacobian (Jacobian Matrix) lên mô hình học sâu để xấp xỉ **Average Treatment Effect (ATE)**. Khi kết hợp ma trận cấu trúc (topological mask) và ATE, mô hình hy vọng sẽ lọc bớt được các cạnh giả (false positives).
+Phase 3: Edge Selection (Adaptive LASSO + Neural ATE)
+    W + X ──► Adaptive LASSO per variable + ATE double-gate ──► Binary DAG
+```
+
+**Key design decisions:**
+- **No hard threshold** — edge selection via cross-validated Adaptive LASSO, not a manual cutoff
+- **TopoSort once** — causal order computed once before bootstrap, reused across all rounds
+- **Self-supervised NLL** — `HeterogeneousNoiseModel` (GMM) is always active via noise proxy `g(X) - f(X)`
 
 ---
 
-## 📦 Cài Đặt
+## Architecture
+
+```
+DeepANM/
+├── deepanm/
+│   ├── core/
+│   │   ├── gppom_hsic.py      # Core engine: Gumbel-gate DAG, FastHSIC loss, ALM penalty
+│   │   ├── mlp.py             # Backbone: Encoder (Gumbel-Softmax) + SEM + GMM noise + PNL Decoder
+│   │   └── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
+│   ├── models/
+│   │   ├── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
+│   │   └── trainer.py         # Augmented Lagrangian training loop
+│   └── utils/
+│       ├── adaptive_lasso.py  # Phase 3: Adaptive LASSO edge selection
+│       └── visualize.py       # plot_dag() via NetworkX
+├── examples/
+│   └── synthetic_demo.py      # Nonlinear synthetic benchmark
+└── tests/
+    └── test_core.py           # 7 unit tests (pytest)
+```
+
+---
+
+## Installation
 
 ```bash
 git clone https://github.com/manhthai1706/DeepANM.git
 cd DeepANM
 pip install -r requirements.txt
 ```
-> **Yêu cầu hệ thống:** Python ≥ 3.8 | PyTorch ≥ 2.0 | Numpy, Matplotlib, NetworkX
+
+**Requirements:** Python ≥ 3.8 · PyTorch ≥ 2.0 · scikit-learn ≥ 1.0 · numpy · scipy · matplotlib
 
 ---
 
-## 💡 Hướng Dẫn Sử Dụng (Quick Start)
+## Quick Start
 
-Dưới đây là một ví dụ cơ bản về cách sử dụng class `DeepANM` để học và trực quan hóa ma trận liên kết.
-
+### Single fit
 ```python
 import numpy as np
+from deepanm import DeepANM
+
+# Generate data (n_samples, n_vars)
+X = np.random.randn(500, 5)
+
+model = DeepANM(n_clusters=2, hidden_dim=64, lda=1.0)
+model.fit(X, epochs=300, lr=2e-3)
+
+# Get adjacency matrix (no threshold needed — Adaptive LASSO handles it)
+ATE, W_binary = model.get_dag_matrix(X=X)
+print(W_binary)  # binary (n_vars, n_vars), W[i,j]=1 means i → j
+```
+
+### Bootstrap Stability Selection (recommended)
+```python
 from deepanm import DeepANM, plot_dag
 
-# 1. Dữ liệu giả lập (Ví dụ: [2000 mẫu, 5 biến])
-data = np.random.randn(2000, 5) 
-labels = ["Gen_A", "Gen_B", "C", "D", "E"]
+X = np.random.randn(500, 5)
+labels = ["A", "B", "C", "D", "E"]
 
-# 2. Khởi tạo DeepANM
-model = DeepANM(
-    n_clusters=2,     # Số cụm phân phối GMM
-    hidden_dim=32,    # Kích thước lớp ẩn MLP
-    lda=0.2          # Trọng số ép tính độc lập HSIC
+model = DeepANM(n_clusters=2, hidden_dim=64, lda=1.0)
+
+# TopoSort runs ONCE on full X, then is reused for all bootstrap rounds
+prob_matrix, avg_ATE = model.fit_bootstrap(
+    X,
+    n_bootstraps=10,   # stability aggregation rounds
+    epochs=200,
+    lr=5e-3
 )
 
-# 3. Chạy quá trình học sử dụng Bootstrap (Stability Selection)
-prob_matrix, avg_W_ATE = model.fit_bootstrap(
-    X=data, 
-    n_bootstraps=5, 
-    threshold=0.01, 
-    epochs=150, 
-    lr=1e-2
-)
+# prob_matrix[i,j] = fraction of bootstrap rounds that confirmed edge i → j
+W_stable = (prob_matrix >= 0.6).astype(int)   # 60% stability threshold
 
-# 4. Lọc các cạnh có độ tin cậy >= 30% (xuất hiện trong 30% số vòng bootstrap)
-W_pred = (prob_matrix > 0.3).astype(int)
-
-# 5. Sử dụng hàm plot_dag để trực quan hóa bằng NetworkX
 plot_dag(
-    W_matrix=W_pred * avg_W_ATE, 
+    W_matrix=W_stable * avg_ATE,
     labels=labels,
-    title="Causal Graph Discovery",
-    threshold=0.01,
-    save_path="my_discovery.png", # Có thể thay bằng hiển thị trực tiếp (bỏ save_path)
-    node_size=2000
+    title="DeepANM Causal Graph",
+    save_path="result.png"
 )
 ```
 
----
+### Prior Knowledge: Lock exogenous variables
+```python
+model = DeepANM(n_clusters=2, hidden_dim=64)
+model._build_core(X.shape[1], X=X)
 
-## 📊 Kết Quả Thực Nghiệm Tham Khảo (Sachs 2005)
+# Forbid any variable from having CRIM as a parent
+model.set_exogenous([0])   # variable index 0 is exogenous
 
-Hệ thống cung cấp sẵn một ví dụ thực nghiệm trong thư mục `examples/sachs_eval.py` để chạy thử nghiệm trên bộ dữ liệu dòng chảy tín hiệu protein tế bào Sachs (11 biến, 2000 quan sát).
+model.fit_bootstrap(X, n_bootstraps=5, epochs=200)
+```
 
-Dưới đây là một vài số liệu thực nghiệm đơn giản của thư viện trên bộ dữ liệu thuần quan sát (Continuous Observational), so với một số phương pháp truyền thống:
-
-| Phương pháp | Loại thuật toán | SHD (Structural Hamming Distance) |
-| :--- | :--- | :--- |
-| PC Algorithm | Constraint-based | ~17 |
-| GES | Score-based | ~15 |
-| NOTEARS | Continuous Opt. | > 12 |
-| DAG-GNN | VAE Deep Learning | ~19 |
-| **DeepANM** | Học sâu + GMM Nhiễu + ALM | **Khoảng 22 - 26** |
-
-*(Ghi chú: Kết quả SHD có thể dao động tùy thuộc vào phương pháp tiền xử lý (như Normalize hay Scaler) và tham số học. Mã nguồn DeepANM hiện đang nghiêng về việc loại trừ rủi ro tạo ra cạnh sai thay vì cố tìm mọi cạnh nhỏ.)*
-
----
-
-## 🧠 Cấu Trúc Mã Nguồn
-
-```text
-DeepANM/
-├── deepanm/
-│   ├── core/
-│   │   ├── mlp.py                  # Backbone Deep Causal (Encoder, GMM, PNL Decoder)
-│   │   ├── gppom_hsic.py           # Logic hàm mất mát (ALM, NOTEARS/DAGMA Penalty)
-│   │   └── kernels.py              # Thư viện RFF cho FastHSIC
-│   ├── models/
-│   │   ├── deepanm.py              # API chính xử lý huấn luyện và dự đoán
-│   │   └── trainer.py              # Xử lý vòng lặp Augmented Lagrangian
-│   └── utils/
-│       └── visualize.py            # Hàm vẽ đồ thị plot_dag() dựa trên NetworkX
-├── examples/
-│   ├── sachs_eval.py               # Chạy thử nghiệm mạng tế bào sinh học Sachs
-│   └── boston_global_discovery.py  # Chạy thử nghiệm đánh giá Boston Housing
-└── tests/
-    └── test_core.py                # Bộ Unit Test sử dụng Pytest
+### Pairwise causal effect estimation
+```python
+# After fit_bootstrap, query ATE between any pair
+ate = model.estimate_ate(X, from_idx=0, to_idx=3)
+print(f"ATE of X0 → X3: {ate:.4f}")
 ```
 
 ---
 
-## 📜 Tài Liệu Học Thuật Xin Chân Thành Cảm Ơn
+## Technical Details
 
-DeepANM trân trọng ghi nhận và xin gửi lời cảm ơn tới kiến thức quý giá từ các tác giả của những công trình sau:
+### Phase 1 — Topological Ordering (`toposort.py`)
 
-1. **amber0309** và kho mã nguồn [ANM-MM](https://github.com/amber0309/ANM-MM) đã cung cấp khung sườn ban đầu của bài toán VAE Clustering.
-2. **Bello, K. et al. (2022).** *"DAGMA: Learning DAGs via M-matrices and a Log-Determinant Acyclicity Characterization."*
-3. **Ge, T. et al. (2023).** *"Causica (DECI) - Deep End-to-end Causal Inference."* (Microsoft Research).
-4. **Zheng, X. et al. (2018).** *"DAGs with NO TEARS: Continuous Optimization for Structure Learning."* NeurIPS.
-5. **Rahimi, A. & Recht, B. (2007).** *"Random Features for Large-Scale Kernel Machines."* NeurIPS.
-6. **Zhang, K. & Hyvarinen, A. (2009).** *"On the Identifiability of the Post-Nonlinear Causal Model."* UAI.
+Implements **Sink-First HSIC Greedy** ordering (inspired by RESIT, Peters et al. 2014):
+
+1. At each step, for each candidate sink `k`, regress all other `Xᵢ` on `Xk` (linear)
+2. Compute `sum HSIC(residᵢ, Xk)` for all `i ≠ k`
+3. Variable with minimum score is the sink (leaf) — peel it off
+4. Repeat until one variable remains (root)
+
+**RFF approximation** (O(n·D) vs exact O(n²) Gram matrix):  
+```
+phi(X) = sqrt(2/D) * cos(X @ W_rff + b)   # D=128 random features
+HSIC ≈ ||phi_x.T @ phi_y||_F² / n²
+```
+
+### Phase 2 — Neural Training (`gppom_hsic.py`)
+
+Jointly optimizes:
+```
+L = MSE(f(X), X)                    # Structural equation regression
+  + λ · HSIC(residuals, X)          # Independence constraint (FastHSIC, O(n·D))
+  + λ · HSIC(mechanism Z, X)        # Mechanism clustering constraint  
+  + 0.015 · NLL_GMM(noise)          # GMM heterogeneous noise model
+  + 0.02 · L1(W) + 0.02 · L2(W)    # Sparsity regularization
+  + 0.1 · KL(q_z || uniform)        # VAE mechanism prior
+
++ ALM: α·h(W) + 0.5·ρ·h(W)²        # DAGMA acyclicity penalty (trainer)
+```
+
+**Gumbel-Softmax STE** on the edge gate `W_logits` enforces hard binary decisions.  
+**TopoMask** (strict triangular from Phase 1) forbids reverse-direction edges.
+
+### Phase 3 — Adaptive LASSO Edge Selection (`adaptive_lasso.py`)
+
+For each variable `j` in causal order:
+1. OLS fit `Xⱼ ~ X_parents` → get `|β_OLS|`
+2. Adaptive weights `wᵢ = 1 / (|β_OLS[i]| + ε)`
+3. LASSO on re-weighted design matrix with cross-validated `α`
+4. Gate with Neural ATE > 1e-3 (double-gate)
+
+This replaces hard thresholding with statistically principled, scale-adaptive sparsity.
+
+---
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+```
+tests/test_core.py::test_mlp_shapes              PASSED
+tests/test_core.py::test_heterogeneous_noise_model PASSED
+tests/test_core.py::test_fast_hsic               PASSED
+tests/test_core.py::test_dag_penalty             PASSED
+tests/test_core.py::test_gppomc_core_forward     PASSED
+tests/test_core.py::test_global_ate_matrix       PASSED
+tests/test_core.py::test_deepanm_integration     PASSED
+
+7 passed in ~4s
+```
+
+---
+
+## References & Acknowledgements
+
+DeepANM builds on ideas from the following works:
+
+| Reference | Contribution to DeepANM |
+|---|---|
+| amber0309 — [ANM-MM](https://github.com/amber0309/ANM-MM) | Original ANM framework & VAE clustering |
+| Zheng et al. (2018) — NOTEARS | Continuous DAG optimization, L1/L2 sparsity |
+| Bello et al. (2022) — DAGMA | Log-determinant acyclicity penalty |
+| Brouillard et al. (2020) — DECI/Causica | Heterogeneous GMM noise model |
+| Peters et al. (2014) — RESIT | Sink-first HSIC topological ordering |
+| Shimizu et al. (2011) — LiNGAM | Adaptive LASSO edge selection |
+| Rahimi & Recht (2007) — RFF | Random Fourier Features for O(n·D) HSIC |
+| Zhang & Hyvarinen (2009) — PNL | Post-Nonlinear causal model |
 
 ---
 
 ## License
-Dự án được phân phối dưới giấy phép [MIT](LICENSE). Vui lòng trích dẫn hoặc giữ nguồn khi bạn phát triển lại từ dự án này cũng như các công trình tiền nhiệm.
+
+MIT License — see [LICENSE](LICENSE). Please acknowledge this repository and the upstream works listed above when building upon this project.
