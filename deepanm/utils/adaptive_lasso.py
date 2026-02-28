@@ -139,6 +139,6 @@ def adaptive_lasso_from_ate(ATE: np.ndarray, X: np.ndarray,
     W_bin : (n_vars, n_vars) binary float array
     """
     W_lasso = adaptive_lasso_dag(X, causal_order)
-    # ATE signal as soft gate (low threshold — not for sparsity, just sanity check)
-    ATE_gate = (np.abs(ATE) > 1e-3).astype(float)
+    # ATE gate: filter edges with negligible causal effect magnitude
+    ATE_gate = (np.abs(ATE) > 0.01).astype(float)
     return (W_lasso * ATE_gate).astype(float)

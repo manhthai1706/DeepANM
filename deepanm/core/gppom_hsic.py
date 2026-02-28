@@ -79,7 +79,7 @@ class GPPOMC_lnhsic_Core(nn.Module):
 
         # --- Gumbel Gate Parameters ---
         self.W_val = nn.Parameter(torch.empty(self.d, self.d).uniform_(-0.01, 0.01))
-        self.W_logits = nn.Parameter(torch.full((self.d, self.d), -1.5))
+        self.W_logits = nn.Parameter(torch.full((self.d, self.d), -3.0))
 
         # --- Topological Mask (Pha 1 RESIT-inspired) ---
         # Nếu có causal_order: chỉ cho phép cạnh đúng hướng tự tiên → hậu (tạo ra Strict Triangular Mask)
@@ -191,11 +191,11 @@ class GPPOMC_lnhsic_Core(nn.Module):
         
         # Hàm loss gốc tối ưu hóa đa tầng (Multi-objective Augmented Lagrangian Base)
         base_loss = (loss_reg + 
-                     loss_nll * 0.015 + 
+                     loss_nll * 0.1 + 
                      self.lda * loss_hsic_clu + 
                      self.lda * loss_hsic_pnl + 
-                     0.02 * l1_loss + # Chuẩn L1 Thưa thớt cạnh
-                     0.02 * l2_loss + # Chuẩn L2 Tăng mượt bề mặt hàm Loss (NOTEARS)
-                     0.1 * kl_loss) # Ràng buộc VAE
+                     0.1 * l1_loss +
+                     0.02 * l2_loss +
+                     0.1 * kl_loss)
         
         return base_loss, loss_reg, loss_hsic_clu, loss_nll # Return all / Trả về tất cả

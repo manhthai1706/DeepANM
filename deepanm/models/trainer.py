@@ -48,8 +48,8 @@ class DeepANMTrainer:
             epoch_hsic = 0.0
             epoch_nll = 0.0
             
-            # Gumbel Temperature Decay
-            temperature = max(0.5, 1.0 - epoch / epochs)
+            # Gumbel Temperature Decay: anneal from 1.0 → 0.1 for hard binary edge decisions
+            temperature = max(0.1, 1.0 - epoch / epochs)
             
             # DAGMA DAG penalty h(W): computed once per epoch for ALM update
             curr_h_val = self.model.core.get_dag_penalty(self.model.core.W_dag).item()

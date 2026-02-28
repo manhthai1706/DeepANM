@@ -2,17 +2,15 @@
 HSIC-based Greedy Causal Topological Ordering
 Inspired by RESIT (Peters et al., 2014) and LiNGAM.
 
-PERF OPTIMIZATIONS v2:
-    [A] RFF-HSIC: O(n*D) approximation replaces O(n²) exact RBF Gram matrix
-    [F] HistGradientBoostingRegressor: 10-50x faster than GradientBoostingRegressor
-        for n > 100 (uses histogram binning instead of sorted enumeration)
+Uses RFF-HSIC O(n*D) approximation and nonlinear residuals (HistGBM)
+for robust ordering on skewed, heavy-tailed, and nonlinear data.
 """
 
 import numpy as np
 
 
 # ---------------------------------------------------------------------------
-# [Fix A] RFF-approximated HSIC  — O(n * D) instead of O(n²)
+# RFF-approximated HSIC — O(n * D) instead of O(n²)
 # ---------------------------------------------------------------------------
 
 def _rff_features(Z: np.ndarray, D: int, bw: float, rng: np.random.RandomState) -> np.ndarray:
@@ -26,7 +24,7 @@ def _rff_features(Z: np.ndarray, D: int, bw: float, rng: np.random.RandomState) 
 
 
 def _bw_estimate(Z: np.ndarray) -> float:
-    """Fast bandwidth via std of pairwise distances (much cheaper than full median)."""
+    """Fast bandwidth via median of pairwise distances on subsample."""
     sub = Z[:200] if Z.shape[0] > 200 else Z
     dists = np.sqrt(np.sum((sub[:, None] - sub[None, :]) ** 2, axis=-1))
     upper = dists[np.triu_indices(sub.shape[0], k=1)]
@@ -34,11 +32,8 @@ def _bw_estimate(Z: np.ndarray) -> float:
     return max(med, 1e-6)
 
 
-def _rff_hsic(X: np.ndarray, Y: np.ndarray, D: int = 64, seed: int = 0) -> float:
-    """
-    RFF-approximated HSIC statistic. O(n*D) time, O(n*D) memory.
-    Much faster than exact O(n²) Gram matrix for n > 200.
-    """
+def _rff_hsic(X: np.ndarray, Y: np.ndarray, D: int = 128, seed: int = 0) -> float:
+    """RFF-approximated HSIC statistic. O(n*D) time."""
     X = X.reshape(X.shape[0], -1)
     Y = Y.reshape(Y.shape[0], -1)
     n = X.shape[0]
@@ -49,13 +44,35 @@ def _rff_hsic(X: np.ndarray, Y: np.ndarray, D: int = 64, seed: int = 0) -> float
     bw_x = _bw_estimate(X)
     bw_y = _bw_estimate(Y)
 
-    phi_x = _rff_features(X, D, bw_x, rng)   # (n, D)
-    phi_y = _rff_features(Y, D, bw_y, rng)   # (n, D)
+    phi_x = _rff_features(X, D, bw_x, rng)
+    phi_y = _rff_features(Y, D, bw_y, rng)
 
-    # HSIC ≈ ||phi_x.T @ phi_y||_F^2 / n^2
-    C = (phi_x.T @ phi_y) / n                 # (D, D)
+    C = (phi_x.T @ phi_y) / n
     return float(np.sum(C ** 2))
 
+
+# ---------------------------------------------------------------------------
+# Nonlinear residual computation via HistGradientBoosting
+# ---------------------------------------------------------------------------
+
+def _nonlinear_residual(X_cause: np.ndarray, Xi: np.ndarray) -> np.ndarray:
+    """
+    Compute residual r_i = Xi - f(X_cause) using HistGradientBoostingRegressor.
+    Handles nonlinear and heavy-tailed relationships much better than OLS.
+    Falls back to linear regression if sklearn is unavailable.
+    """
+    try:
+        from sklearn.ensemble import HistGradientBoostingRegressor
+        reg = HistGradientBoostingRegressor(
+            max_iter=50, max_depth=3, learning_rate=0.1,
+            random_state=42, early_stopping=False
+        )
+        reg.fit(X_cause, Xi)
+        return Xi - reg.predict(X_cause)
+    except Exception:
+        # Fallback: linear regression
+        w = np.linalg.lstsq(X_cause, Xi, rcond=None)[0]
+        return Xi - X_cause @ w
 
 
 # ---------------------------------------------------------------------------
@@ -66,15 +83,18 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     """
     Estimate causal topological order using Sink-First HSIC (Bottom-Up RESIT).
 
-    Uses RFF-approximated HSIC (O(n*D)) instead of exact O(n²) kernel.
+    Uses:
+      - RFF-approximated HSIC (O(n*D)) for independence testing
+      - QuantileTransform to handle skewed/heavy-tailed data
+      - Nonlinear residuals (HistGBM) for inner-loop regression when d_remaining <= 6
 
     Strategy (Bottom-Up):
         While |S| > 1:
             For each candidate sink k in S:
                 For each other variable i in S:
-                    Residual r_i = Xi - linear_fit(Xi ~ Xk).
+                    Residual r_i = Xi - f(Xk).
                     Score += RFF-HSIC(r_i, Xk).
-            Pick k* = argmin Score → most likely leaf/sink.
+            Pick k* = argmin Score -> most likely leaf/sink.
             Record k* as next (from the leaf end). Remove from S.
         Reverse to get root-first order.
 
@@ -93,30 +113,44 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     if n_vars == 1:
         return [0]
 
-    # Standardize
-    std = X.std(axis=0)
-    std[std < 1e-8] = 1.0
-    X_scaled = (X - X.mean(axis=0)) / std
+    # QuantileTransform to Gaussian: handles skewness and heavy tails
+    # (critical for Sachs-like data where std ranges from 43 to 644)
+    try:
+        from sklearn.preprocessing import QuantileTransformer
+        qt = QuantileTransformer(output_distribution='normal', random_state=42)
+        X_scaled = qt.fit_transform(X)
+    except Exception:
+        # Fallback: standard scaling
+        std = X.std(axis=0)
+        std[std < 1e-8] = 1.0
+        X_scaled = (X - X.mean(axis=0)) / std
 
     remaining = list(range(n_vars))
-    reverse_order = []   # leaf → root, reversed at end
+    reverse_order = []
 
     step = 0
     while len(remaining) > 1:
         sink_scores = []
+        # Use nonlinear residuals when few variables remain (affordable)
+        use_nonlinear = len(remaining) <= 6
 
         for k in remaining:
             Xk = X_scaled[:, k]
             Xk_2d = Xk.reshape(-1, 1)
-            var_k = float(np.var(Xk)) + 1e-8
 
             total = 0.0
             for i in [j for j in remaining if j != k]:
                 Xi = X_scaled[:, i]
-                # Simple linear residual of Xi on Xk (O(n) — intentionally cheap here)
-                w = float(np.dot(Xi, Xk) / (n_samples * var_k))
-                res_i = (Xi - w * Xk).reshape(-1, 1)
-                # [Fix A]: RFF-HSIC instead of exact RBF Gram
+
+                if use_nonlinear:
+                    # HistGBM nonlinear residual
+                    res_i = _nonlinear_residual(Xk_2d, Xi).reshape(-1, 1)
+                else:
+                    # Fast linear residual (O(n))
+                    var_k = float(np.var(Xk)) + 1e-8
+                    w = float(np.dot(Xi, Xk) / (n_samples * var_k))
+                    res_i = (Xi - w * Xk).reshape(-1, 1)
+
                 total += _rff_hsic(res_i, Xk_2d, D=n_rff, seed=step)
             sink_scores.append(total)
 
@@ -127,16 +161,11 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
             scores_str = ", ".join(
                 f"X{remaining[i]}={sink_scores[i]:.4f}" for i in range(len(remaining))
             )
-            print(f"  [TopoSort] Remaining={remaining}  SinkScore=[{scores_str}]  → Sink=X{sink_var}")
+            print(f"  [TopoSort] Remaining={remaining}  SinkScore=[{scores_str}]  -> Sink=X{sink_var}")
 
         reverse_order.append(sink_var)
         remaining.pop(sink_idx)
         step += 1
 
-    reverse_order.append(remaining[0])   # last = root
+    reverse_order.append(remaining[0])
     return list(reversed(reverse_order))
-
-
-# ---------------------------------------------------------------------------
-# Public export
-# ---------------------------------------------------------------------------
