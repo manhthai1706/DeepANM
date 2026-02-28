@@ -57,7 +57,9 @@ class DeepANM(nn.Module):
         self.history = None
 
         if x_dim is not None:
-            self._build_core(x_dim)
+            # Pre-build without TopoSort (no data available yet);
+            # topo_mask falls back to no-self-loop until fit() is called.
+            self._build_core(x_dim, X=None, causal_order=None, verbose=False)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -217,12 +219,44 @@ class DeepANM(nn.Module):
     def set_exogenous(self, exog_indices):
         """
         Mark variables as exogenous (no incoming edges allowed).
-        Must be called after fit() or after x_dim is known.
+        Zeros out columns in both topo_mask and constraint_mask so no
+        variable can be learned as having a parent among the exogenous set.
+        Call after fit() or after _build_core() to take effect.
         """
         self.exog_indices = exog_indices
         if self.core is not None:
             for idx in exog_indices:
+                # Block all incoming edges to exog variable
+                self.core.topo_mask[:, idx] = 0.0
                 self.core.constraint_mask[:, idx] = 0.0
+
+    def estimate_ate(self, X: np.ndarray, from_idx: int, to_idx: int) -> float:
+        """
+        Estimate the Average Treatment Effect of variable `from_idx` on `to_idx`.
+
+        Uses MLP.estimate_ate() via do-calculus simulation:
+            ATE = E[Y_to | do(X_from + eps)] - E[Y_to | do(X_from)]
+
+        Parameters
+        ----------
+        X        : observational data (n, d)
+        from_idx : index of the cause variable
+        to_idx   : index of the effect variable
+
+        Returns
+        -------
+        ate : float — positive means positive causal effect
+        """
+        self.eval()
+        if isinstance(X, torch.Tensor):
+            X = X.cpu().numpy()
+        X_control = X.copy()
+        X_treatment = X.copy()
+        X_treatment[:, from_idx] += 1.0   # Unit intervention
+        return self.core.MLP.estimate_ate(
+            X_control[:, from_idx:from_idx+1],
+            X_treatment[:, from_idx:from_idx+1]
+        )
 
     def predict_clusters(self, X):
         """Return the most likely mechanism cluster assignment for each sample."""

@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from deepanm.core.kernels import RBFKernel
 from deepanm.core import mlp
 
 class RFFGPLayer(nn.Module):

@@ -4,7 +4,7 @@ Contains fundamental components for causal discovery
 """
 
 from .gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC, RFFGPLayer
-from .kernels import RBFKernel, LinearKernel
+from .kernels import RBFKernel
 from .mlp import MLP
 
 __all__ = [
@@ -12,9 +12,5 @@ __all__ = [
     'FastHSIC',
     'RFFGPLayer',
     'RBFKernel',
-    'LinearKernel',
-    'PolynomialKernel',
-    'MaternKernel',
-    'RationalQuadraticKernel',
     'MLP'
 ]

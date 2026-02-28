@@ -105,19 +105,3 @@ class DeepANMTrainer:
         
         return self.history 
 
-def train_deepanm(X, Y, x_dim, y_dim, n_clusters=2, hidden_dim=64, 
-                   lda=1.0, epochs=200, batch_size=64, lr=2e-3, 
-                   device=None, verbose=True):
-    """Convenience helper for training / Hàm hỗ trợ huấn luyện nhanh"""
-    model = DeepANM(
-        x_dim=x_dim, y_dim=y_dim, n_clusters=n_clusters,
-        hidden_dim=hidden_dim, lda=lda, device=device
-    ) # Instantiate / Khởi tạo thực thể
-    
-    trainer = DeepANMTrainer(model, lr=lr) # Setup trainer / Cài đặt bộ huấn luyện
-    # Start process / Bắt đầu quy trình
-    history = trainer.train(X, epochs=epochs, batch_size=batch_size, verbose=verbose)
-    
-    return model, trainer, history # Return results / Trả về kết quả
-
-

@@ -1,6 +1,10 @@
 """
 Unified PyTorch Kernels Library / Thư viện Kernel thống nhất
 Tối ưu chuyên sâu cho kiểm định tính độc lập thống kê (HSIC) trong học Nhân quả (Causal Discovery)
+
+NOTE: RBFKernel được giữ lại cho các use-case tuỳ chỉnh bên ngoài,
+nhưng DeepANM nội bộ dùng RFFGPLayer (trong gppom_hsic.py) vì nhanh hơn O(n²) → O(n*D).
+LinearKernel dành cho kiểm định tuyến tính nhanh khi cần baseline.
 """
 
 import torch
@@ -26,48 +30,20 @@ class RBFKernel(nn.Module):
             
         gamma_learned = torch.exp(self.log_gamma)
         
-        # Áp dụng trọng số chiều nếu sử dụng đồ thị tính toán ARD
         x1_scaled = x1 * torch.sqrt(gamma_learned)
         x2_scaled = x2 * torch.sqrt(gamma_learned)
 
-        # Trích xuất ma trận khoảng cách bình phương (L2 Squared)
         dist_sq = torch.cdist(x1_scaled, x2_scaled, p=2)**2
         
-        # ----------------------------------------------------
-        # MEDIAN HEURISTIC: ĐỘC QUYỀN TRONG KIỂM ĐỊNH NHÂN QUẢ 
-        # Căn chỉnh ma trận tự động để HSIC luôn hội tụ.
-        # ----------------------------------------------------
         gamma_baseline = 1.0
         if self.use_median_heuristic and x1 is x2:
-            with torch.no_grad(): # Không truyền đạo hàm qua tác vụ tìm ngưỡng Heuristic
+            with torch.no_grad():
                 n = dist_sq.shape[0]
                 if n > 1:
-                    # Lấy phân nửa ma trận tam giác trên để tìm giá trị trung vị
                     triu_mask = torch.triu(torch.ones(n, n, dtype=torch.bool, device=dist_sq.device), diagonal=1)
                     median_dist_sq = torch.median(dist_sq[triu_mask])
                     if median_dist_sq.item() > 0:
                         gamma_baseline = 1.0 / median_dist_sq
         
         alpha = torch.exp(self.log_alpha)
-        
-        # Trả về ma trận Gram (Kernel Matrix) theo chuẩn học máy nhân quả
         return alpha * torch.exp(-0.5 * gamma_baseline * dist_sq)
-
-class LinearKernel(nn.Module):
-    """
-    Linear Kernel: K(x, y) = scale * x^T y + bias / Hàm nhân tuyến tính
-    Được tối ưu để trích xuất tương quan tuyến tính vững và nhẹ nhàng.
-    """
-    def __init__(self, input_dim=None):
-        super().__init__()
-        self.log_scale = nn.Parameter(torch.zeros(1)) # Tỉ lệ (Scale)
-        self.log_bias = nn.Parameter(torch.zeros(1))  # Chệch (Bias)
-
-    def forward(self, x1, x2=None):
-        if x2 is None:
-            x2 = x1
-        scale = torch.exp(self.log_scale)
-        bias = torch.exp(self.log_bias)
-        
-        # Phương pháp nhân vô hướng siêu nhanh trên PyTorch
-        return scale * (x1 @ x2.T) + bias
