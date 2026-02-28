@@ -38,8 +38,8 @@ class DeepANMTrainer:
             print("-" * 60)
         
         # --- Khởi tạo siêu tham số Augmented Lagrangian (ALM) ---
-        rho, alpha, h_val, h_tol = 1.0, 0.0, float('inf'), 1e-8
-        rho_max = 1e8 # Giới hạn rho để tránh nổ gradient
+        rho, alpha, h_val = 1.0, 0.0, float('inf')
+        rho_max = 1e8
         
         self.model.train() 
         for epoch in range(epochs): 
@@ -51,9 +51,7 @@ class DeepANMTrainer:
             # Gumbel Temperature Decay
             temperature = max(0.5, 1.0 - epoch / epochs)
             
-            # Khởi tạo ma trận rỗng để tính h(W) chuẩn
-            W_est = self.model.core.W_dag.detach()
-            # NOTEARS Ràng buộc chống chu kỳ h(W) = tr(e^(W * W)) - d
+            # DAGMA DAG penalty h(W): computed once per epoch for ALM update
             curr_h_val = self.model.core.get_dag_penalty(self.model.core.W_dag).item()
             
             # Cập nhật Rho (Multiplier cho L2) và Alpha (Multiplier cho Lagrangian) mỗi 10 epoch 
@@ -97,6 +95,8 @@ class DeepANMTrainer:
             n_batches = len(loader) 
             self.history['loss'].append(epoch_loss / n_batches)
             self.history['nll'].append(epoch_nll / n_batches)
+            self.history['reg'].append(epoch_reg / n_batches)
+            self.history['hsic'].append(epoch_hsic / n_batches)
             
             if verbose and (epoch + 1) % 50 == 0: 
                 print(f"Epoch {epoch+1:3d}/{epochs} | ALM Loss: {epoch_loss/n_batches:.4f} | "

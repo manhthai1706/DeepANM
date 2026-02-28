@@ -252,11 +252,8 @@ class DeepANM(nn.Module):
             X = X.cpu().numpy()
         X_control = X.copy()
         X_treatment = X.copy()
-        X_treatment[:, from_idx] += 1.0   # Unit intervention
-        return self.core.MLP.estimate_ate(
-            X_control[:, from_idx:from_idx+1],
-            X_treatment[:, from_idx:from_idx+1]
-        )
+        X_treatment[:, from_idx] += 1.0   # Unit intervention on from_idx
+        return self.core.MLP.estimate_ate(X_control, X_treatment)
 
     def predict_clusters(self, X):
         """Return the most likely mechanism cluster assignment for each sample."""

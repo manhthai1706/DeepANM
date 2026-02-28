@@ -166,23 +166,23 @@ class MLP(nn.Module):
         # 2. Suy diễn f(X)
         mu = self.sem(x)
         
-        # 3. Chuyển vị hậu hình học (Post-nonlinear)
-        y_trans = self.pnl_transform(mu)
-        
+        # 3. Self-supervised noise proxy: N = g(X) - f(X)
+        # Luôn tính log_prob_noise (không cần y ground truth):
+        # g(X) ≈ x qua PNL transform, nhiễu = sai lệch giữa observation và prediction
+        noise_proxy = self.pnl_transform(x) - mu
+
         results = {
-            "feat": feat,
             "z_soft": z_soft,
-            "kl_loss": kl_loss, # Khôi phục biến này để tích hợp Core GPPOM_HSIC
-            "mu": mu,           # Giá trị dự báo của hàm nguyên trạng thái
-            "y_trans": y_trans, # Giá trị sau biển đổi
+            "kl_loss": kl_loss,
+            "mu": mu,
+            # GMM log-likelihood của nhiễu ước tính (luôn active)
+            "log_prob_noise": self.noise_model.compute_log_prob(noise_proxy),
         }
         
         if y is not None:
-            # Nhiễu sinh ra
-            noise = y - mu
-            results["noise"] = noise
-            
-            results["log_prob_noise"] = self.noise_model.compute_log_prob(noise)
+            # Nếu có ground truth y, tính nhiễu chính xác hơn
+            exact_noise = y - mu
+            results["log_prob_noise"] = self.noise_model.compute_log_prob(exact_noise)
 
         return results
 

@@ -20,12 +20,15 @@ def test_mlp_shapes():
     assert out['mu'].shape == (batch_size, input_dim)
     assert torch.allclose(out['z_soft'].sum(dim=1), torch.ones(batch_size))
     
-    # Forward with y (for noise modeling tests)
+    # log_prob_noise is now always computed (self-supervised noise proxy)
+    assert 'log_prob_noise' in out
+    assert out['log_prob_noise'].shape == (batch_size,)
+
+    # Forward with y uses exact noise instead of proxy
     y = torch.randn(batch_size, input_dim)
     out_with_y = mlp(x, y=y)
-    assert 'noise' in out_with_y
     assert 'log_prob_noise' in out_with_y
-    assert out_with_y['log_prob_noise'].shape == (batch_size,) # Log prob should be 1D target
+    assert out_with_y['log_prob_noise'].shape == (batch_size,)
 
 def test_heterogeneous_noise_model():
     """Verify DECI-inspired GMM Flow / Kiểm tra mô hình nhiễu lai DECI"""
