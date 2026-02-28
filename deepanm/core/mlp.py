@@ -136,7 +136,7 @@ class MLP(nn.Module):
     Tối ưu hóa để phát hiện nhân quả song biến (X -> Y hoặc mạng đa biến).
     * Giữ lại module tên MLP để tương thích với các script gọi vào của bạn.
     """
-    def __init__(self, input_dim, hidden_dim, output_dim=1, n_clusters=2, use_spline=True, device='cpu'):
+    def __init__(self, input_dim, hidden_dim, output_dim=1, n_clusters=2, device='cpu'):
         super().__init__()
         self.device = device
         self.n_clusters = n_clusters
@@ -228,7 +228,6 @@ class MLP(nn.Module):
                 X_ten = X.clone().float().to(self.device)
                 
             n_samples, n_vars = X_ten.shape
-            ate_matrix = torch.zeros((n_vars, n_vars), device=self.device)
             
             # Tính Control State (Giá trị dự đoán mạng SCM Gốc)
             if W_dag is not None:

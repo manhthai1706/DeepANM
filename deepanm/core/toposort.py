@@ -57,32 +57,6 @@ def _rff_hsic(X: np.ndarray, Y: np.ndarray, D: int = 64, seed: int = 0) -> float
     return float(np.sum(C ** 2))
 
 
-# ---------------------------------------------------------------------------
-# [Fix F] Fast residual regressor using HistGradientBoosting
-# ---------------------------------------------------------------------------
-
-def _fit_residuals(X_others: np.ndarray, Xk: np.ndarray) -> np.ndarray:
-    """
-    Fit Xk ~ f(X_others) with HistGradientBoostingRegressor.
-    10-50x faster than GradientBoostingRegressor for n > 100
-    (uses histogram binning instead of sorted feature enumeration).
-    """
-    try:
-        from sklearn.ensemble import HistGradientBoostingRegressor
-        reg = HistGradientBoostingRegressor(
-            max_iter=100,         # Equivalent to n_estimators=100
-            max_depth=4,
-            learning_rate=0.1,
-            random_state=42,
-            early_stopping=False  # Skip validation set overhead
-        )
-        reg.fit(X_others, Xk)
-        return Xk - reg.predict(X_others)
-    except Exception:
-        # Fallback: linear residuals (no sklearn dependency)
-        w = np.linalg.lstsq(X_others, Xk, rcond=None)[0]
-        return Xk - X_others @ w
-
 
 # ---------------------------------------------------------------------------
 # Main: Sink-First HSIC greedy topological sort
@@ -92,7 +66,7 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     """
     Estimate causal topological order using Sink-First HSIC (Bottom-Up RESIT).
 
-    [Fix A]: Uses RFF-approximated HSIC (O(n*D)) instead of exact O(n²) kernel.
+    Uses RFF-approximated HSIC (O(n*D)) instead of exact O(n²) kernel.
 
     Strategy (Bottom-Up):
         While |S| > 1:
@@ -107,7 +81,7 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     Parameters
     ----------
     X      : (n_samples, n_vars) array
-    n_rff  : number of Random Fourier Features (D). Default 64.
+    n_rff  : number of Random Fourier Features. Default 128.
     verbose: print per-step scores.
 
     Returns
@@ -163,15 +137,6 @@ def hsic_greedy_order(X: np.ndarray, n_rff: int = 128, verbose: bool = False) ->
     return list(reversed(reverse_order))
 
 
-def build_topo_mask(causal_order: list, n_vars: int) -> np.ndarray:
-    """
-    Build a strict topological mask from a causal order.
-    mask[i, j] = 1  iff  position(i) < position(j)  (edge i→j is allowed).
-    """
-    position = {var: idx for idx, var in enumerate(causal_order)}
-    mask = np.zeros((n_vars, n_vars), dtype=np.float32)
-    for i in range(n_vars):
-        for j in range(n_vars):
-            if i != j and position[i] < position[j]:
-                mask[i, j] = 1.0
-    return mask
+# ---------------------------------------------------------------------------
+# Public export
+# ---------------------------------------------------------------------------

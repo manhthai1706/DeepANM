@@ -167,8 +167,7 @@ class GPPOMC_lnhsic_Core(nn.Module):
         phi = self.gp_phi_z(z_soft) * self.gp_phi_x(masked_input) # X đã được filter bởi graph liên hệ
         y_pred_gp = self.linear_head(phi) + out['mu'] # Hợp nhất Nonlinear (GP) + Linear Baseline (mu)
         
-        # DAG penalty is added by trainer (ALM loop) — not duplicated here
-        
+
         # Lỗi MSE Hồi Quy Cấu Trúc
         loss_reg = F.mse_loss(y_pred_gp, batch_data)
         

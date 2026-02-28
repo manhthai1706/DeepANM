@@ -69,7 +69,7 @@ def _adaptive_lasso_column(X_parents: np.ndarray, Xj: np.ndarray,
 
         # 4. LASSO with cross-validation on the re-weighted design matrix
         cv_folds = min(5, max(3, n // 50))
-        lasso = LassoCV(cv=cv_folds, max_iter=5000, n_alphas=30,
+        lasso = LassoCV(cv=cv_folds, max_iter=2000, n_alphas=20,
                         fit_intercept=True, random_state=42)
         lasso.fit(X_tilde, yj_scaled)
 
