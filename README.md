@@ -144,10 +144,11 @@ print(f"ATE of X0 → X3: {ate:.4f}")
 
 Implements **Sink-First HSIC Greedy** ordering (inspired by RESIT, Peters et al. 2014):
 
-1. At each step, for each candidate sink `k`, regress all other `Xᵢ` on `Xk` (linear)
-2. Compute `sum HSIC(residᵢ, Xk)` for all `i ≠ k`
-3. Variable with minimum score is the sink (leaf) — peel it off
-4. Repeat until one variable remains (root)
+1. **QuantileTransform** to Gaussian to handle heavily skewed/heavy-tailed variables
+2. At each step, for each candidate sink `k`, regress all other `Xᵢ` on `Xk` using **HistGradientBoosting** (for nonlinear relations) or linear regression
+3. Compute `sum HSIC(residᵢ, Xk)` for all `i ≠ k`
+4. Variable with minimum score is the sink (leaf) — peel it off
+5. Repeat until one variable remains (root)
 
 **RFF approximation** (O(n·D) vs exact O(n²) Gram matrix):  
 ```
@@ -162,8 +163,8 @@ Jointly optimizes:
 L = MSE(f(X), X)                    # Structural equation regression
   + λ · HSIC(residuals, X)          # Independence constraint (FastHSIC, O(n·D))
   + λ · HSIC(mechanism Z, X)        # Mechanism clustering constraint  
-  + 0.015 · NLL_GMM(noise)          # GMM heterogeneous noise model
-  + 0.02 · L1(W) + 0.02 · L2(W)    # Sparsity regularization
+  + 0.1 · NLL_GMM(noise)            # GMM heterogeneous noise model
+  + 0.1 · L1(W) + 0.02 · L2(W)      # Sparsity regularization
   + 0.1 · KL(q_z || uniform)        # VAE mechanism prior
 
 + ALM: α·h(W) + 0.5·ρ·h(W)²        # DAGMA acyclicity penalty (trainer)
@@ -178,7 +179,7 @@ For each variable `j` in causal order:
 1. OLS fit `Xⱼ ~ X_parents` → get `|β_OLS|`
 2. Adaptive weights `wᵢ = 1 / (|β_OLS[i]| + ε)`
 3. LASSO on re-weighted design matrix with cross-validated `α`
-4. Gate with Neural ATE > 1e-3 (double-gate)
+4. Gate with **Direct Causal Effect (ATE) > 0.01**. (Computed via do-calculus on the DAG-masked neural inputs to avoid leaking indirect effects).
 
 This replaces hard thresholding with statistically principled, scale-adaptive sparsity.
 
