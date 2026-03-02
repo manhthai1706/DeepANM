@@ -132,44 +132,6 @@ class DeepANM(nn.Module):
         self.history = trainer.train(X, epochs=epochs, batch_size=batch_size, verbose=verbose)
         return self.history
 
-    def fit_fast_baseline(self, X, apply_quantile=False, apply_isolation=False, verbose=True):
-        """
-        Lightweight Mode / Tốc độ Ánh sáng.
-        Chỉ chạy Phase 1 (TopoSort) + Phase 3 (Adaptive LASSO).
-        Bỏ qua hoàn toàn Neural Network (Phase 2), không cần PyTorch, epochs hay epochs_loss.
-        Phù hợp để test nhanh (sanity check) hoặc làm baseline so sánh trên bộ dữ liệu mới.
-        
-        Returns
-        -------
-        W_pred : (n_vars, n_vars) boolean/binary DAG matrix.
-        """
-        X = self._preprocess(X, apply_isolation=apply_isolation, apply_quantile=apply_quantile)
-        n_samples, n_vars = X.shape
-        
-        # 1. Pipeline TopoSort
-        from deepanm.core.toposort import hsic_greedy_order
-        if verbose:
-            print("[FastMode] Step 1/2: Running TopoSort (HSIC Sink-First)...")
-            
-        causal_order = hsic_greedy_order(X, verbose=verbose)
-        self._causal_order = causal_order
-        
-        if verbose:
-            order_str = " → ".join(f"X{i}" for i in causal_order)
-            print(f"[FastMode] Causal order: {order_str}")
-            
-        # 2. Pipeline Adaptive LASSO (Sparsity)
-        from deepanm.utils.adaptive_lasso import adaptive_lasso_dag
-        if verbose:
-            print("[FastMode] Step 2/2: Running Adaptive LASSO for edge selection...")
-            
-        W_pred = adaptive_lasso_dag(X, causal_order)
-        
-        if verbose:
-            print(f"[FastMode] Done! Discovered {int(W_pred.sum())} edges.")
-            
-        return W_pred
-
 
     def fit_bootstrap(self, X, n_bootstraps=5,
                       epochs=200, batch_size=64, lr=5e-3, verbose=True,

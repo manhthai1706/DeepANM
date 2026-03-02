@@ -10,8 +10,8 @@ from .utils.trainer import DeepANMTrainer
 
 # Export core components for advanced users
 from .core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
-from .core.fast_baseline import FastANM
-from .core.lite_baseline import LiteANM
+from .models.fast_baseline import FastANM
+from .models.lite_baseline import LiteANM
 
 # Utilities
 from .utils.visualize import plot_dag

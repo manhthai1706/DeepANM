@@ -45,11 +45,11 @@ DeepANM/
 │   ├── core/
 │   │   ├── gppom_hsic.py      # Core engine: Gumbel-gate DAG, FastHSIC loss, ALM penalty
 │   │   ├── mlp.py             # Backbone: Encoder (Gumbel-Softmax) + SEM + GMM noise + PNL Decoder
-│   │   ├── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
+│   │   └── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
+│   ├── models/
+│   │   ├── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
 │   │   ├── fast_baseline.py   # Lightning-fast TopoSort + LASSO without Neural Net
 │   │   └── lite_baseline.py   # Simpler Neural Net defaults (n_clusters=1, smaller hidden_dim)
-│   ├── models/
-│   │   └── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
 │   └── utils/
 │       ├── trainer.py         # Augmented Lagrangian training loop
 │       ├── adaptive_lasso.py  # Phase 3: Adaptive LASSO edge selection
