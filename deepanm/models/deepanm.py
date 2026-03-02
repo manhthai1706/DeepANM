@@ -120,7 +120,7 @@ class DeepANM(nn.Module):
     def fit(self, X, epochs=200, batch_size=64, lr=2e-3, verbose=True,
             apply_quantile=False, apply_isolation=False, _precomputed_order=None):
         """Train on raw data X (numpy array, shape [n_samples, n_vars])."""
-        from deepanm.models.trainer import DeepANMTrainer
+        from deepanm.utils.trainer import DeepANMTrainer
 
         X = self._preprocess(X, apply_isolation=apply_isolation, apply_quantile=apply_quantile)
 

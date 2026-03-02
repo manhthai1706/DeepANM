@@ -47,9 +47,9 @@ DeepANM/
 │   │   ├── mlp.py             # Backbone: Encoder (Gumbel-Softmax) + SEM + GMM noise + PNL Decoder
 │   │   └── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
 │   ├── models/
-│   │   ├── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
-│   │   └── trainer.py         # Augmented Lagrangian training loop
+│   │   └── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
 │   └── utils/
+│       ├── trainer.py         # Augmented Lagrangian training loop
 │       ├── adaptive_lasso.py  # Phase 3: Adaptive LASSO edge selection
 │       └── visualize.py       # plot_dag() via NetworkX
 ├── examples/
