@@ -3,8 +3,8 @@ Fast Baseline Logic (Lightweight Mode)
 Bypasses Deep Learning entirely. Uses only Phase 1 (TopoSort) + Phase 3 (Adaptive LASSO).
 """
 import numpy as np
-from deepanm.core.toposort import hsic_greedy_order
-from deepanm.utils.adaptive_lasso import adaptive_lasso_dag
+from src.core.toposort import hsic_greedy_order
+from src.utils.adaptive_lasso import adaptive_lasso_dag
 
 class FastANM:
     """

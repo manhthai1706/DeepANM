@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Đảm bảo import được module `deepanm` từ thư mục gốc
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from deepanm import DeepANM, plot_dag
+from src import DeepANM, plot_dag
 
 def generate_nonlinear_data(n_samples=2000):
     """

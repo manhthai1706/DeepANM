@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
-from deepanm.models.deepanm import DeepANM
+from src.models.deepanm import DeepANM
 
 class DeepANMTrainer:
     """Trainer class for DeepANM / Lớp điều phối huấn luyện cho DeepANM"""

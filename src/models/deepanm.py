@@ -74,7 +74,7 @@ class DeepANM(nn.Module):
           2. X provided but no order       → run TopoSort now
           3. Neither                       → no topo mask (fallback)
         """
-        from deepanm.core.gppom_hsic import GPPOMC_lnhsic_Core
+        from src.core.gppom_hsic import GPPOMC_lnhsic_Core
         self.x_dim = x_dim
 
         # Determine causal order (TopoSort or pre-computed)
@@ -85,7 +85,7 @@ class DeepANM(nn.Module):
                 order_str = " → ".join(f"X{i}" for i in order)
                 print(f"[TopoSort] Using cached order: {order_str}")
         elif X is not None:
-            from deepanm.core.toposort import hsic_greedy_order
+            from src.core.toposort import hsic_greedy_order
             if verbose:
                 print("[TopoSort] Estimating causal order via HSIC (RFF, Sink-First)...")
             order = hsic_greedy_order(X, verbose=False)
@@ -120,7 +120,7 @@ class DeepANM(nn.Module):
     def fit(self, X, epochs=200, batch_size=64, lr=2e-3, verbose=True,
             apply_quantile=False, apply_isolation=False, _precomputed_order=None):
         """Train on raw data X (numpy array, shape [n_samples, n_vars])."""
-        from deepanm.utils.trainer import DeepANMTrainer
+        from src.utils.trainer import DeepANMTrainer
 
         X = self._preprocess(X, apply_isolation=apply_isolation, apply_quantile=apply_quantile)
 
@@ -155,7 +155,7 @@ class DeepANM(nn.Module):
         agg_bin = np.zeros((n_vars, n_vars))
 
         # [Fix E]: TopoSort once on FULL data — not inside the bootstrap loop
-        from deepanm.core.toposort import hsic_greedy_order
+        from src.core.toposort import hsic_greedy_order
         if verbose:
             print("[TopoSort] Running ONCE on full dataset before bootstrap...")
         self._causal_order = hsic_greedy_order(X, verbose=False)
@@ -210,7 +210,7 @@ class DeepANM(nn.Module):
                     self.core.topo_mask.cpu().numpy(), self.x_dim)
 
                 # Adaptive LASSO + ATE double gate
-                from deepanm.utils.adaptive_lasso import adaptive_lasso_from_ate
+                from src.utils.adaptive_lasso import adaptive_lasso_from_ate
                 W_bin = adaptive_lasso_from_ate(ATE, X, causal_order)
                 return ATE, W_bin
             else:

@@ -1,9 +1,9 @@
 import torch
 import numpy as np
 import pytest
-from deepanm.core.mlp import MLP, HeterogeneousNoiseModel
-from deepanm.core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
-from deepanm.models.deepanm import DeepANM
+from src.core.mlp import MLP, HeterogeneousNoiseModel
+from src.core.gppom_hsic import GPPOMC_lnhsic_Core, FastHSIC
+from src.models.deepanm import DeepANM
 
 def test_mlp_shapes():
     """Verify MLP output shapes / Kiểm tra kích thước đầu ra của MLP"""

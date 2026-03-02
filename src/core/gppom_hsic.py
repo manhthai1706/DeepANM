@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from deepanm.core import mlp
+from src.core import mlp
 
 class RFFGPLayer(nn.Module):
     """

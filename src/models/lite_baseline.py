@@ -3,7 +3,7 @@ Lite Baseline Logic
 A lighter version of the DeepANM neural network for faster execution 
 on medium-sized datasets.
 """
-from deepanm.models.deepanm import DeepANM
+from src.models.deepanm import DeepANM
 
 class LiteANM(DeepANM):
     """
