@@ -45,7 +45,9 @@ DeepANM/
 │   ├── core/
 │   │   ├── gppom_hsic.py      # Core engine: Gumbel-gate DAG, FastHSIC loss, ALM penalty
 │   │   ├── mlp.py             # Backbone: Encoder (Gumbel-Softmax) + SEM + GMM noise + PNL Decoder
-│   │   └── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
+│   │   ├── toposort.py        # Phase 1: Sink-First HSIC greedy order (RFF-approximated, O(n·D))
+│   │   ├── fast_baseline.py   # Lightning-fast TopoSort + LASSO without Neural Net
+│   │   └── lite_baseline.py   # Simpler Neural Net defaults (n_clusters=1, smaller hidden_dim)
 │   ├── models/
 │   │   └── deepanm.py         # Public API: fit, fit_bootstrap, get_dag_matrix, estimate_ate
 │   └── utils/
@@ -134,6 +136,25 @@ model.fit_bootstrap(X, n_bootstraps=5, epochs=200)
 # After fit_bootstrap, query ATE between any pair
 ate = model.estimate_ate(X, from_idx=0, to_idx=3)
 print(f"ATE of X0 → X3: {ate:.4f}")
+```
+
+### Super Fast Mode (Lightweight Baseline)
+Ideal for testing datasets with hundreds of variables quickly by skipping Phase 2 Neural Training. Runs in ~5 seconds.
+```python
+from deepanm import FastANM, plot_dag
+
+model = FastANM()
+W_fast = model.fit(X, apply_quantile=True)
+plot_dag(W_matrix=W_fast, title="FastANM Causal Graph")
+```
+
+### Lite Mode (Faster Deep Learning)
+Uses Neural Training, but ignores Heterogeneous Noise modeling. Speeds up Phase 2 substantially.
+```python
+from deepanm import LiteANM
+
+model = LiteANM() 
+model.fit_bootstrap(X, n_bootstraps=3) # automatically uses 50 epochs, 16 hidden_dim
 ```
 
 ---
