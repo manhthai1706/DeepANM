@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 import time
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.models.deepanm import DeepANM
 
 def main():
