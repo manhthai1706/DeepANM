@@ -209,16 +209,21 @@ tests/test_core.py::test_deepanm_integration      PASSED
 
 ## Tài liệu tham khảo
 
-| Tài liệu | Đóng góp cho DeepANM |
-|:---|:---|
-| Peters et al. (2014) — RESIT | Sắp xếp topo Sink-First bằng HSIC |
-| Zheng et al. (2018) — NOTEARS | Tối ưu DAG liên tục, điều chuẩn L1/L2 |
-| Bello et al. (2022) — DAGMA | Phạt phi chu trình log-determinant |
-| Brouillard et al. (2020) — DECI | Mô hình nhiễu GMM không đồng nhất |
-| Shimizu et al. (2011) — LiNGAM | Chọn cạnh Adaptive LASSO |
-| Rahimi & Recht (2007) — RFF | Random Fourier Features O(N·D) |
-| Zhang & Hyvarinen (2009) — PNL | Mô hình nhân quả hậu phi tuyến |
-| amber0309 — ANM-MM | Framework ANM gốc và phân cụm VAE |
+| Đề xuất / Thuật toán | Nguồn tài liệu | Đóng góp vào hệ thống DeepANM |
+|:---|:---|:---|
+| **ANM** (Additive Noise) | Hoyer et al. (2009) | Lý thuyết nền tảng về Mô hình Nhiễu cộng bất đối xứng |
+| **PNL** (Post-Nonlinear) | Zhang & Hyvarinen (2009) | Mô hình nhân quả hậu phi tuyến (Module Decoder) |
+| **HSIC** (Independence) | Gretton et al. (2005) | Tiêu chí độc lập Hilbert-Schmidt dùng làm loss function |
+| **RFF** (Fourier Features)| Rahimi & Recht (2007) | Tối ưu hóa HSIC từ O(N²) xuống O(N·D) |
+| **RESIT** (TopoSort) | Peters et al. (2014) | Sắp xếp thứ tự nhân quả Sink-First bằng phần dư |
+| **NOTEARS** (Continuous) | Zheng et al. (2018) | Phát kiến chuyển bài toán học DAG tổ hợp sang liên tục |
+| **DAGMA** (Acyclicity) | Bello et al. (2022) | Hàm phạt phi chu trình $h(W)$ bằng Log-determinant |
+| **DECI / Causica** | Brouillard et al. (2020) | Kỹ thuật mô hình hóa nhiễu GMM không đồng nhất |
+| **Adaptive LASSO** | Zou (2006) | Thuật toán chọn cạnh thưa thớt (Phase 3 Edge Selection) |
+| **Random Forest** | Breiman (2001) | Đánh giá độ quan trọng hoán vị (Permutation Importance) |
+| **Sachs Dataset** | Sachs et al. (2005) | Tập dữ liệu Benchmark sinh học mạng lưới Protein |
+| **Boston Housing** | Harrison & Rubinfeld (1978)| Tập dữ liệu Benchmark kinh tế học xã hội |
+| **ANM-MM** (Baseline) | amber0309 (GitHub) | Nguồn cảm hứng cho mạng VAE phân loại cơ chế |
 
 ---
 
