@@ -15,12 +15,12 @@ graph TD
     
     Data[(Dữ liệu quan sát đa biến X)] --> Preprocess(Tiền xử lý & Loại bỏ nhiễu cực trị)
     
-    subgraph Phase 1: Tiền định hướng (TopoSort)
+    subgraph phase1 ["Phase 1: Tiền định hướng (TopoSort)"]
         Preprocess --> RFF[Phép chiếu Không gian ngẫu nhiên Fourier - RFF]
         RFF --> Sink[HSIC Greedy Sink-First Ordering]
     end
     
-    subgraph Phase 2: Khớp Động cơ Sinh thái (Neural SCM Fitter)
+    subgraph phase2 ["Phase 2: Khớp Động cơ Sinh thái (Neural SCM Fitter)"]
         Sink -->|Thứ tự Ưu tiên C| Encoder[Mạng VAE Encoder + Gumbel Softmax]
         Sink -->|Đội hình biến| SEM[Mạng Neural Phương trình Nhân quả Cốt lõi]
         Encoder -->|Phân cụm Cơ chế Z| Combine((Trộn Ensemble))
@@ -29,7 +29,7 @@ graph TD
         Decoder --> ALM[Tối ưu hóa Hệ số Vong lặp DAGMA ALM]
     end
     
-    subgraph Phase 3: Công cụ Cắt tỉa tinh chỉnh (Adaptive Post-Pruning)
+    subgraph phase3 ["Phase 3: Công cụ Cắt tỉa tinh chỉnh (Adaptive Post-Pruning)"]
         ALM -->|Ma trận Trọng số thô W_raw| DoubleGate(Double-Gate Filter)
         DoubleGate --> RF[Random Forest Permutation Importance]
         DoubleGate --> ATE[Neural ATE Jacobian Estimator]
@@ -207,8 +207,8 @@ Quy trình Tính R-Squared Permutation được hệ thống code DeepANM thực
 
 Như phân tích ở Chương 2, Mạng Học sâu không thể tránh việc nối Cạnh cho đường Gián Cầu (A $\to$ B $\to$ C, Dẫn đến nối nhầm A $\to$ C).
 Thuật toán gạt nhầm nhánh gián tiếp dựa vào **Cây Tăng Cường Tốc độ (HistGradientBoostingRegressor)**:
-- Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - Bất_kỳ_Nonlinear_model(A, \text{với_tập } B)$
-- Dự đoán $C$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{C|B} = C - Model(C, \text{với_tập } B)$
+- Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - \text{Nonlinear\_model}(A, \text{với tập } B)$
+- Dự đoán $C$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{C|B} = C - \text{Model}(C, \text{với tập } B)$
 - Chạy hệ số Tương quan tuyến tính (Pearson Correlation test) giữa bộ biến đổi $\varepsilon_{A|B}$ và $\varepsilon_{C|B}$.
 - Trả về ngưỡng tham chiếu p-value. Nếu $p > 0.05$, các phần độc lập (Residuals) thể hiện rằng chúng hoàn toàn triệt tiêu khi biết thêm Nền trung gian. Bác bỏ giả thuyết có đường truyền thông tin liên kết riêng $A \to C$. Node C sẽ được tách rời.
 
