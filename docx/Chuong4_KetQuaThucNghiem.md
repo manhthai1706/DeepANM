@@ -93,27 +93,29 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 - **Lỗi đảo ngược (Reversals):** **0** (Hoàn toàn triệt tiêu các lỗi về hướng nhờ cấu trúc phân tầng).
 - **Tính ổn định:** Việc áp dụng ràng buộc đa tầng giúp thu hẹp không gian tìm thấy các cạnh giả (FP giảm từ 12 xuống còn 6).
 
-### 4.2.6 So sánh với các phương pháp hiện đại
+### 4.2.6 Đối chiếu với một số phương pháp phổ biến
 
-Để đánh giá khách quan vị thế của mô hình đề xuất, chúng tôi thực hiện so sánh chỉ số SHD của DeepANM với các thuật toán khám phá nhân quả hàng đầu được công bố trong các nghiên cứu gần đây (điển hình là GraN-DAG, 2019).
+Để có cái nhìn đa chiều về kết quả thực nghiệm, chúng tôi liệt kê chỉ số SHD của DeepANM bên cạnh các giá trị được công bố của một số thuật toán khám phá nhân quả trên cùng tập dữ liệu Sachs (dựa trên thống kê từ nghiên cứu GraN-DAG, 2019 và các báo cáo liên quan).
 
 <div align="center">
 
-**Bảng 4.2: So sánh SHD trên Sachs Dataset với các thuật toán SOTA**
+**Bảng 4.2: Kết quả SHD trên Sachs Dataset của một số thuật toán**
 
-| Thuật toán | SHD | Đặc điểm mô hình |
+| Thuật toán | SHD | Ghi chú về mô hình |
 | :--- | :--- | :--- |
-| **NOTEARS (Zheng et al., 2018)** | 22 | Tối ưu hóa liên tục, giả định tuyến tính |
-| **DAG-GNN (Yu et al., 2019)** | 19 | Dựa trên đồ thị mạng neural (VAE) |
-| **NOTEARS-MLP (Zheng et al., 2020)** | 16 | Phiên bản phi tuyến của NOTEARS |
-| **CAM (Bühlmann et al., 2014)** | 12 | Hiệu quả với ANM phi tuyến, chi phí tính toán cao |
-| **GraN-DAG (Lachapelle et al., 2019)** | 13 | Sử dụng Neural Network và cơ chế cắt tỉa Gradient |
-| **DeepANM** (Ours - Không tiên nghiệm) | 16 | Sử dụng kiến trúc 3 pha và bộ lọc Double-Gate |
-| **DeepANM** (Ours - Có phân tầng) | **12** | **Tích hợp tri thức miền sâu, triệt tiêu lỗi đảo ngược** |
+| **NOTEARS (2018)** | 22 | Tối ưu hóa liên tục, giả định tuyến tính |
+| **DAG-GNN (2019)** | 19 | Dựa trên kiến trúc mạng neural (VAE) |
+| **NOTEARS-MLP (2020)** | 16 | Mở rộng phi tuyến của thuật toán NOTEARS |
+| **CAM (2014)** | 12 | Mô hình ANM phi tuyến dựa trên tính điểm |
+| **GraN-DAG (2019)** | 13 | Sử dụng mạng neural và cơ chế lọc gradient |
+| **DeepANM** (Không dùng tiên nghiệm) | 16 | Kết quả thực nghiệm tại Pha 3 |
+| **DeepANM** (Có dùng phân tầng) | **12** | **Kết quả khi tích hợp ràng buộc 4 tầng** |
 
 </div>
 
-Kết quả cho thấy khi không sử dụng tiên nghiệm tri thức miền, DeepANM đạt hiệu năng tương đương với **NOTEARS-MLP**. Tuy nhiên, khi được tích hợp các ràng buộc phân tầng (Layer Constraints), DeepANM đạt được chỉ số SHD tối ưu là **12**, ngang bằng với thuật toán CAM và tốt hơn GraN-DAG. Điều này khẳng định khả năng tận dụng tri thức miền hiệu quả của kiến trúc đề xuất.
+Dựa trên bảng đối chiếu, có thể thấy khi không sử dụng thông tin tiên nghiệm, kết quả của DeepANM nằm trong khoảng tương đồng với phương pháp NOTEARS-MLP. Khi được bổ sung các ràng buộc phân tầng (Layer Constraints), chỉ số SHD đạt mức 12, tương đương với thuật toán CAM và thấp hơn một ít so với GraN-DAG. Kết quả này cho thấy khả năng thu hẹp sai số cấu trúc của mô hình khi được hỗ trợ bởi các tri thức miền phù hợp trên dữ liệu sinh học.
+
+Cách tiếp cận này giúp ổn định hướng cạnh và phát huy hiệu quả của kiến trúc đa giai đoạn trong việc xử lý các quan hệ nhân quả phức tạp.
 
 
 ## 4.3 Nghiên cứu cắt bỏ thành phần (Ablation Study)
