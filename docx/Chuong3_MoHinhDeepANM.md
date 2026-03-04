@@ -150,18 +150,18 @@ Vì bài toán yêu cầu Cực tiểu $\mathcal{L}_{\text{toàn cục}}$ VỚI 
 ```mermaid
 sequenceDiagram
     participant ALM as Vòng lặp ALM (Ngoài)
-    participant Opt as Tối ưu hóa Adam (Trong)
+    participant Adam as Tối ưu hóa Adam (Trong)
     participant Graph as Đồ thị Nhân quả W
 
-    ALM->>Opt: Bắt đầu với hệ số phạt nhẹ
+    ALM->>Adam: Bắt đầu với hệ số phạt nhẹ
     loop Huấn luyện Epoch
-        Opt->>Graph: Cập nhật trọng số để giảm Loss
-        Graph->>Opt: Tính toán vi phạm Chu trình h(W)
+        Adam->>Graph: Cập nhật trọng số để giảm Loss
+        Graph->>Adam: Tính toán vi phạm Chu trình h(W)
     end
-    Opt->>ALM: Trả về đồ thị hiện tại
+    Adam->>ALM: Trả về đồ thị hiện tại
     ALM->>ALM: Kiểm tra ràng buộc
     Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
-    ALM->>Opt: Tiếp tục huấn luyện với rào chắn cứng hơn
+    ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
 
 Kỹ thuật ALM đẩy hệ số cấm chập mạch to lên theo thời gian. Giai đoạn đầu, mô hình được tự do khám phá các mối quan hệ. Nhưng dần về sau, khi hình phạt xấp xỉ vô cực, hệ thống mạng nơ-ron buộc phải tự cắt bỏ những mắt xích yếu nhất để triệt tiêu các vòng lặp, chỉ giữ lại những đường dây nhân quả cốt lõi nhất.
