@@ -62,7 +62,7 @@ graph TD
     
     Data["<b>Dữ liệu thô (X)</b><br/>Observational Data"] --> Pre["<b>Tiền xử lý</b><br/>Outliers & Norm"]
     
-    subgraph phase1 ["PHÀ 1: ĐỊNH HƯỚNG TOPOSORT"]
+    subgraph phase1 ["PHA 1: ĐỊNH HƯỚNG TOPOSORT"]
         Pre --> RFF["RFF Projection<br/>(Kernel Space)"]
         RFF --> Sink["Greedy Sink-First<br/>(HSIC Order)"]
     end
@@ -123,6 +123,31 @@ Kết quả của Pha 1 là một **Thứ tự Topological (Permutation)**. Đâ
 
 Nếu Pha 1 đóng vai trò "người dẫn đường", thì Pha 2 chính là "trái tim" của hệ thống DeepANM. Tại đây, ta thực sự xây dựng các phương trình cấu trúc phi tuyến (Structural Equation Models - SCM) để mô tả cách các biến số tương tác với nhau trong thế giới thực.
 
+```mermaid
+graph TD
+    In["Dữ liệu X"] --> Mask["Cổng Gumbel<br/>& Mặt nạ Topo"]
+    In --> Encoder["Encoder VAE<br/>(Cluster Z)"]
+    
+    Mask -->|"Ma trận W"| Dot["Nhân ma trận<br/>(X @ W)"]
+    Dot --> SEM["Mạng Neural<br/>SEM (MLP)"]
+    
+    Dot --> RFF["Lớp RFF-GP<br/>(Kernel Mapping)"]
+    RFF --> GP_Head["Hồi quy GP<br/>(Non-linear)"]
+    
+    SEM --> Sum["Tổng hợp Dự đoán<br/>(MLP + GP)"]
+    GP_Head --> Sum
+    Encoder -->|z_soft| Sum
+    
+    Sum --> Res["Tính toán Phần dư<br/>(Residuals)"]
+    Sum --> Loss["Loss: MSE + NLL<br/>+ DAGMA"]
+    
+    Res --> HSIC["Kiểm định HSIC<br/>(Độc lập Nhiễu)"]
+    HSIC --> Loss
+    
+    Loss -->|"Backprop"| Mask
+```
+<p align="center"><b>Hình 3.2: Sơ đồ kiến trúc kỹ thuật chi tiết của khối GPPOM-HSIC</b></p>
+
 ### 3.6.1 Cơ chế Kết hợp VAE và Cổng Gumbel-Softmax
 
 DeepANM kế thừa và phát triển tư tưởng từ kiến trúc Biến phân (Variational Auto-Encoder - VAE). Tuy nhiên, thay vì chỉ nén dữ liệu, DeepANM sử dụng VAE để khám phá các **Cơ chế Nhân quả ẩn (Latent Causal Mechanisms)**.
@@ -142,12 +167,59 @@ Trong dữ liệu y sinh, một gen có thể có nhiễu rất nhỏ ở nồng
 - Mạng nơ-ron không chỉ dự đoán giá trị trung bình $\mu$, mà còn dự đoán cả phân phối sai số.
 - Cho phép mô hình "chấp nhận" các vùng dữ liệu bất định mà không làm chệch hướng đồ thị nhân quả chính.
 
+```mermaid
+graph TD
+    In["Đầu vào X"]
+    
+    subgraph Enc_Block ["1. Khối Encoder"]
+        In --> E1["Linear + GELU"]
+        E1 --> E2["Softmax / Gumbel"]
+        E2 --> Z["Cơ chế Z (Latent)"]
+    end
+    
+    Z --> SEM_Block
+    
+    subgraph SEM_Block ["2. Khối SEM (ANM_SEM)"]
+        In --> Mask["W-Masking"]
+        Mask --> Res["Res-MLP Blocks"]
+        Res --> Mu["Dự đoán mu_j"]
+    end
+    
+    subgraph Dec_Block ["3. Khối Decoder & Nhiễu"]
+        Mu --> PNL["PNL Decoder"]
+        PNL --> YH["Dự đoán Y_hat"]
+        YH --> Noise["Heterogeneous<br/>Noise Model (GMM)"]
+        Z -->|cluster weight| Noise
+    end
+    
+    Noise --> Loss["Loss: MSE+NLL+h(W)"]
+```
+<p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
+
 ### 3.6.4 Tối ưu hóa DAGMA và Thuật toán ALM
 
 Để đảm bảo mạng nơ-ron không vẽ ra các đường vòng (Cycle), DeepANM áp dụng rào chắn toán học **DAGMA**. Thay vì kiểm soát từng cạnh một cách rời rạc, DAGMA nhìn vào toàn bộ ma trận trọng số $W$ và tính toán một giá trị "hình phạt chu trình" dựa trên định thức ma trận.
 
 - **Vòng lặp trong (Adam Optimizer):** Cố gắng giảm sai số dự đoán (MSE) và tăng độ khớp của nhiễu.
 - **Vòng lặp ngoài (ALM Controller):** Theo dõi xem đồ thị có vi phạm tính phi chu trình không. Nếu có chu trình xuất hiện, ALM sẽ tăng "hình phạt" lên gấp 10 lần, ép mạng nơ-ron phải cắt bỏ những mắt xích yếu nhất để triệt tiêu vòng lặp.
+
+```mermaid
+sequenceDiagram
+    participant ALM as Vòng lặp ALM (Ngoài)
+    participant Adam as Tối ưu hóa Adam (Trong)
+    participant Graph as Đồ thị Nhân quả W
+
+    ALM->>Adam: Bắt đầu với hệ số phạt nhẹ
+    loop Huấn luyện Epoch
+        Adam->>Graph: Cập nhật trọng số để giảm Loss
+        Graph->>Adam: Tính toán vi phạm Chu trình h(W)
+    end
+    Adam->>ALM: Trả về đồ thị hiện tại
+    ALM->>ALM: Kiểm tra ràng buộc
+    Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
+    ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
+```
+<p align="center"><b>Hình 3.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
 
 ### 3.6.5 Suy diễn Biến phân và Thành phần KL-Divergence
 
@@ -158,6 +230,17 @@ Trong quá trình học các cụm cơ chế, mô hình VAE của DeepANM sử d
 ## 3.7 Pha 3: Hệ thống Lọc Cạnh Double-Gate (Post-Pruning Phase)
 
 Dù Pha 2 đã tạo ra một đồ thị DAG rất tốt, nhưng do mạng nơ-ron làm việc trong không gian số thực liên tục, ma trận trọng số $W$ thường còn sót lại các giá trị nhỏ (nhiễu nền). Pha 3 đóng vai trò là "bộ lọc tinh" cuối cùng để loại bỏ các mối quan hệ giả (False Positives).
+
+```mermaid
+graph TD
+    Raw["Đồ thị thô<br/>Phase 2"] --> Gate1["Cổng 1:<br/>Neural Jacobian ATE"]
+    Raw --> Gate2["Cổng 2:<br/>RF Importance"]
+    Gate1 --> Logic{Kết hợp & Lọc}
+    Gate2 --> Logic
+    Logic --> CI["Cổng 3:<br/>Test Độc lập CI"]
+    CI --> Final["DAG Cuối cùng"]
+```
+<p align="center"><b>Hình 3.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
 
 ### 3.7.1 Cổng 1: Neural Jacobian ATE (Average Treatment Effect)
 
