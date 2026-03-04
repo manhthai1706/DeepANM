@@ -130,6 +130,25 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
      $Y_{trans} = \text{Decoder}(\mu_z)$
    - Sau đó tính toán phân phối log-likelihood của phần dư nhiễu bằng thuật toán phân bổ hỗn hợp Gaussian hỗn hợp theo phân hóa cụm DECI (Heterogeneous Noise Component).
 
+```mermaid
+graph TD
+    subgraph MLP_Architect ["Chi tiết Kiến trúc Mạng Neural DeepANM"]
+        In[Input X] --> En_Net[Encoder: Linear + GELU + Norm]
+        En_Net --> Gumbel["Gumbel-Softmax (Mechanism Z)"]
+        
+        In --> Mask[W-Logits Mask]
+        Mask --> SEM_Res[SEM: Residual MLP Blocks]
+        SEM_Res --> mu[Dự đoán mu_j]
+        
+        mu --> Decoder[Monotonic Decoder: Softplus weight]
+        Gumbel -->|Z| Final[Tái cấu trúc & GMM Likelihood]
+        Decoder --> Final
+        
+        Final --> Loss[Total Loss: MSE + NLL + h(W)]
+    end
+```
+<p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
+
 ### 3.3.2 Hàm Mất Mát Đa Mục Tiêu (Objective Loss Function)
 
 Với hàng chục ngàn trọng số Param thiết kế, GPPOMC định hướng Back-propagation thông qua hàm Loss đồ sộ hòa trộn 4 chỉ số cực tiểu hóa. Đặt $\Theta$ là toàn tập Parameters của Neural Networks và $W$ là Ma trận kề Causal Graph DAG logit. 
@@ -167,7 +186,7 @@ sequenceDiagram
     Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
     ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
-<p align="center"><b>Hình 3.3: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
+<p align="center"><b>Hình 3.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
 
 
 Kỹ thuật ALM đẩy hệ số cấm chập mạch to lên theo thời gian. Giai đoạn đầu, mô hình được tự do khám phá các mối quan hệ. Nhưng dần về sau, khi hình phạt xấp xỉ vô cực, hệ thống mạng nơ-ron buộc phải tự cắt bỏ những mắt xích yếu nhất để triệt tiêu các vòng lặp, chỉ giữ lại những đường dây nhân quả cốt lõi nhất.
@@ -191,7 +210,7 @@ graph TD
     Logic --> CI[Cổng 3: Test Độc lập Điều kiện CI]
     CI --> Final[DAG Cuối cùng]
 ```
-<p align="center"><b>Hình 3.4: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
+<p align="center"><b>Hình 3.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
 
 
 ### 3.4.1 Màng Lọc Cơ Sở Jacobian (Neural ATE Score)
