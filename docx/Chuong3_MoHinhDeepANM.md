@@ -126,11 +126,11 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 
 Với hàng chục ngàn trọng số Param thiết kế, GPPOMC định hướng Back-propagation thông qua hàm Loss đồ sộ hòa trộn 4 chỉ số cực tiểu hóa. Đặt $\Theta$ là toàn tập Parameters của Neural Networks và $W$ là Ma trận kề Causal Graph DAG logit. 
 
-$$ \mathcal{L}_{toàn\_cục} = \gamma_1 \mathcal{L}_{\text{Base MSE}} + \gamma_2 \mathcal{L}_{\text{NLL Noise}} + \gamma_3 \mathcal{L}_{\text{L2 Reg}} + KL_z + \Lambda_{\text{DAGMA}}(W)$$
+$$ \mathcal{L}_{\text{toàn cục}} = \gamma_1 \mathcal{L}_{\text{Base MSE}} + \gamma_2 \mathcal{L}_{\text{NLL Noise}} + \gamma_3 \mathcal{L}_{\text{L2 Reg}} + KL_z + \Lambda_{\text{DAGMA}}(W)$$
 
 **A. Khối Hàm Lỗi Tiên Tiệm (Base Loss & Likelihood):**
 1. $\mathcal{L}_{\text{Base MSE}} = \frac{1}{N} \sum || X - \hat{\mu_{sem}}(\Theta_{sem}) ||^2_2 $: Hàm căn bản đánh giá chất lượng tái tạo (Reconstruction Error) tương đương với các AutoEncoder. 
-2. $\mathcal{L}_{\text{NLL_Noise}} = - \mathbb{E} [ \log P(\varepsilon_j | \sigma_z, \mu_z)]$: Hàm Negative Log-Likelihood (Tối đa hợp lí biên phần dư). Nếu $X$ bị mô hình giải thích theo nhầm cụm cơ chế $Z$, nhiễu sẽ lớn và đẩy NLL lên cao. Tối ưu cực tiểu NLL ép Mạng Deep Learning co cụm phương sai và tìm ra điểm ổn định của GMM Phân mảnh.
+2. $\mathcal{L}_{\text{NLL Noise}} = - \mathbb{E} [ \log P(\varepsilon_j | \sigma_z, \mu_z)]$: Hàm Negative Log-Likelihood (Tối đa hợp lí biên phần dư). Nếu $X$ bị mô hình giải thích theo nhầm cụm cơ chế $Z$, nhiễu sẽ lớn và đẩy NLL lên cao. Tối ưu cực tiểu NLL ép Mạng Deep Learning co cụm phương sai và tìm ra điểm ổn định của GMM Phân mảnh.
 3. KLD (KL-Divergence): Tối ưu độ khác biệt phân phối đồng đều của Biến chọn cụm (hạn chế Node vón cục lười biếng về 1 Cơ chế).
 
 **B. Rào chắn Tối ưu Phi Chu Trình DAGMA (Acyclicity Constraint):**
@@ -142,7 +142,7 @@ $$ h_{DAGMA}(W) = - \log \det(\mathbf{I} - \alpha W \circ W) $$
 
 ### 3.3.3 Vòng xoáy Tối ưu Augmented Lagrangian Method (ALM)
 
-Vì bài toán yêu cầu Cực tiểu $\mathcal{L}_{toàn\_cục}$ VỚI ĐIỀU KIỆN RÀNG BUỘC (Subject to constraint) $h_{DAGMA}(W) = 0$. Hai không gian này mâu thuẫn (Mạng càng tạo chu trình Cycle, Loss MSE càng nhỏ). Do vậy, tôi triển khai thuật toán ALM lừng danh (Bertsekas, 1982). Quá trình huấn luyện không chỉ dốc xuống bằng thuật toán Gradient Adam truyền thống một chiều mà gồm 2 vòng lặp (Dual-Loop Optimization):
+Vì bài toán yêu cầu Cực tiểu $\mathcal{L}_{\text{toàn cục}}$ VỚI ĐIỀU KIỆN RÀNG BUỘC (Subject to constraint) $h_{DAGMA}(W) = 0$. Hai không gian này mâu thuẫn (Mạng càng tạo chu trình Cycle, Loss MSE càng nhỏ). Do vậy, tôi triển khai thuật toán ALM lừng danh (Bertsekas, 1982). Quá trình huấn luyện không chỉ dốc xuống bằng thuật toán Gradient Adam truyền thống một chiều mà gồm 2 vòng lặp (Dual-Loop Optimization):
 
 **Thuật toán ALM Loop Lõi (Mã giả của quá trình Training Epoch):**
 ```python
@@ -171,7 +171,7 @@ For v in range(1, NUM_DUAL_ITERATIONS=10):
     Cập nhật Nhân Tử Lagrange_Multiplier += Rho * h_val
 ```
 
-Kỹ thuật ALM đẩy giá trị $\rho$ (hệ số cấm chập mạch) to lên theo thời gian. Giai đoạn đầu, ALM "nhắm mắt làm ngơ" cho mạng Neural đi vẽ lung tung chu trình khép kín nhằm học cách dự đoán nhanh $f_{SEM}$. Nhưng dần về sau, khi $\rho$ xấp xỉ vô cực, $\mathcal{L}_{\text{toàn\_cục}}$ bị kéo tăng đột biến, hệ thống Mạng Neural TỰ ĐỘNG CÚT CẠNH YẾU NHẤT (cắt dây chuyền yếu nhất) để triệt tiêu Cycle, hạ $h_{DAGMA}(W)$ về bằng đúng số Zeros, phá vòng xoáy nhưng giữ được đường dây nhân quả chân quang nhất. 
+Kỹ thuật ALM đẩy giá trị $\rho$ (hệ số cấm chập mạch) to lên theo thời gian. Giai đoạn đầu, ALM "nhắm mắt làm ngơ" cho mạng Neural đi vẽ lung tung chu trình khép kín nhằm học cách dự đoán nhanh $f_{SEM}$. Nhưng dần về sau, khi $\rho$ xấp xỉ vô cực, $\mathcal{L}_{\text{toàn cục}}$ bị kéo tăng đột biến, hệ thống Mạng Neural TỰ ĐỘNG TỰ CẮT CẠNH YẾU NHẤT (cắt dây chuyền yếu nhất) để triệt tiêu Cycle, hạ $h_{DAGMA}(W)$ về bằng đúng số Zeros, phá vòng xoáy nhưng giữ được đường dây nhân quả chân quang nhất. 
 
 ---
 
@@ -207,7 +207,7 @@ Quy trình Tính R-Squared Permutation được hệ thống code DeepANM thực
 
 Như phân tích ở Chương 2, Mạng Học sâu không thể tránh việc nối Cạnh cho đường Gián Cầu (A $\to$ B $\to$ C, Dẫn đến nối nhầm A $\to$ C).
 Thuật toán gạt nhầm nhánh gián tiếp dựa vào **Cây Tăng Cường Tốc độ (HistGradientBoostingRegressor)**:
-- Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - \text{Nonlinear\_model}(A, \text{với tập } B)$
+- Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - \text{Nonlinear Model}(A, \text{với tập } B)$
 - Dự đoán $C$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{C|B} = C - \text{Model}(C, \text{với tập } B)$
 - Chạy hệ số Tương quan tuyến tính (Pearson Correlation test) giữa bộ biến đổi $\varepsilon_{A|B}$ và $\varepsilon_{C|B}$.
 - Trả về ngưỡng tham chiếu p-value. Nếu $p > 0.05$, các phần độc lập (Residuals) thể hiện rằng chúng hoàn toàn triệt tiêu khi biết thêm Nền trung gian. Bác bỏ giả thuyết có đường truyền thông tin liên kết riêng $A \to C$. Node C sẽ được tách rời.
