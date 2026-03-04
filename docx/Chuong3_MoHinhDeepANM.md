@@ -15,27 +15,27 @@ graph TD
     
     Data[(Dữ liệu quan sát đa biến X)] --> Preprocess(Tiền xử lý & Loại bỏ nhiễu cực trị)
     
-    subgraph phase1 ["Pha 1: Định hướng TopoSort"]
+    subgraph phase1 ["Pha 1: TopoSort"]
         Preprocess --> RFF[Phép chiếu RFF]
-        RFF --> Sink[HSIC Sink-First Ordering]
+        RFF --> Sink[HSIC Sink-First]
     end
     
-    subgraph phase2 ["Pha 2: Khớp Động cơ Neural SCM"]
-        Sink -->|Thứ tự C| Encoder[VAE + Gumbel Softmax]
-        Sink -->|Đội hình| SEM[Mạng Neural SCM]
-        Encoder -->|Phân cụm Z| Combine((Trộn Ensemble))
+    subgraph phase2 ["Pha 2: Học SCM"]
+        Sink -->|Thứ tự| Encoder["VAE + Gumbel"]
+        Sink -->|Biến| SEM[Neural SCM]
+        Encoder -->|Phân cụm| Combine((Ensemble))
         SEM -->|Dự đoán| Combine
         Combine --> Decoder[Monotonic Decoder]
-        Decoder --> ALM[Tối ưu DAGMA ALM]
+        Decoder --> ALM[ALM Optimizer]
     end
     
-    subgraph phase3 ["Pha 3: Cắt tỉa & Tinh chỉnh"]
-        ALM -->|Trọng số W| DoubleGate(Double-Gate Filter)
-        DoubleGate --> RF[Random Forest Importance]
-        DoubleGate --> ATE[Jacobian ATE Estimator]
+    subgraph phase3 ["Pha 3: Cắt tỉa"]
+        ALM -->|Trọng số| DoubleGate(Double-Gate)
+        DoubleGate --> RF[RF Importance]
+        DoubleGate --> ATE[Jacobian ATE]
         RF --> ALasso[Adaptive LASSO]
         ATE --> ALasso
-        ALasso --> CI[Test Độc lập CI]
+        ALasso --> CI[Test CI]
     end
     
     CI --> Final[DAG Cuối cùng]
