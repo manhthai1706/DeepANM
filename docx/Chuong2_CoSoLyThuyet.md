@@ -4,7 +4,7 @@ Chương này trình bày các khái niệm nền tảng và cơ sở toán họ
 
 ## 2.1 Khung Cấu trúc Nhân quả (Causal Framework)
 
-Để máy tính có thể "hiểu" và "học" được nhân quả, chúng ta cần một ngôn ngữ toán học thống nhất. Tính đến nay, hai công cụ biểu diễn toán học quyền lực nhất được sử dụng trong Trí tuệ Nhân tạo là Đồ thị DAG và Mô hình SEM.
+Để máy tính có thể "hiểu" và "học" được nhân quả, chúng ta cần một ngôn ngữ toán học thống nhất. Tính đến nay, hai công cụ biểu diễn toán học chủ chốt được sử dụng trong Trí tuệ Nhân tạo là Đồ thị DAG và Mô hình SEM.
 
 ### 2.1.1 Đồ thị có hướng không chu trình (Directed Acyclic Graph - DAG)
 
@@ -74,7 +74,7 @@ Nền tảng của thuật toán nằm ở Việc chứng minh toán học phứ
 3. Đổi chiều chiều ngược lại: Coi $Y$ là nguyên nhân, học $X \approx g(Y)$, tính phần dư $\varepsilon_X = X - g(Y)$ và đối chứng độc lập $\varepsilon_X \perp\!\!\!\perp Y$.
 4. Lý thuyết chứng minh rằng: **Chỉ có chiều diễn tiến thật sự của tự nhiên mới duy trì được tính độc lập giữa Nguyên nhân và Phần dư.** Chiều ngược lại (Học máy buộc phải ép đường cong ngược) sẽ tạo hình dạng phần dư phụ thuộc mạnh mẽ vào vị trí điểm ảnh của biến nguyên nhân giả (Dependent Residuals).
 
-Sự thay đổi về tính độc lập phần dư (Residual Dependence) này là hòn đá tảng cho bộ đánh giá TopoSort Sink-First. Tuy nhiên, nó yêu cầu một phép thử độc lập thống kê cực kỳ nhạy bén - HSIC, mà các tham số hiệp phương sai tuyến tính truyền thống (Covariance, Pearson Correlation) thất bại hoàn toàn.
+Sự thay đổi về tính độc lập phần dư (Residual Dependence) này là nền tảng cho bộ đánh giá TopoSort Sink-First. Tuy nhiên, nó yêu cầu một phép thử độc lập thống kê có độ nhạy cao - HSIC, mà các tham số hiệp phương sai tuyến tính truyền thống (Covariance, Pearson Correlation) không đủ khả năng đáp ứng.
 
 ---
 

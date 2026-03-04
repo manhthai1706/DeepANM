@@ -2,13 +2,13 @@
 
 Chương này trình bày một cách hệ thống và chi tiết về cấu trúc kỹ thuật, nền tảng toán học và quy trình thực thi của mô hình **DeepANM (Deep Additive Noise Model)**. Đây là một hệ điều hành khám phá nhân quả (Causal Discovery) hiệu quả, được thiết kế để khắc phục những hạn chế của các phương pháp truyền thống trong việc xử lý dữ liệu phi tuyến, nhiễu không đồng nhất (Heterogeneous noise) và sự phức tạp của không gian trạng thái DAG.
 
-## 3.1 Triết lý Thiết kế và Kiến trúc Tổng thể
+## 3.1 Cấu trúc tổng thể của hệ thống đề xuất
 
 Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng không chu trình (DAG) từ dữ liệu quan sát là một bài khó khăn đặc thù do tính chất **NP-Hard** của không gian tìm kiếm. Khi số lượng biến $d$ tăng lên, số lượng đồ thị khả thi tăng trưởng theo hàm siêu mũ. Để giải quyết vấn đề này, DeepANM triển khai một lộ trình **3 Pha Tương hỗ (3-Phase Synergetic Pipeline)** thay vì chỉ dựa vào các phương pháp heuristic thông thường.
 
-### 3.1.1 Tư tưởng "Chia để trị" trong Khám phá Nhân quả
+### 3.1.1 Tiếp cận đa giai đoạn trong khám phá nhân quả
 
-Triết lý cốt lõi của DeepANM là sự phân rã trách nhiệm giữa các tầng xử lý:
+Cách tiếp cận chính của DeepANM là sự phân rã trách nhiệm giữa các tầng xử lý:
 1.  **Hạn chế không gian (Pha 1):** Sử dụng các kiểm định thống kê phi tham số để xác định trật tự dòng chảy thông tin (Causal Ordering), giúp thu hẹp không gian tìm kiếm từ $2^{O(d^2)}$ xuống một tập hợp các đồ thị tuân thủ thứ tự topo.
 2.  **Mô hình hóa sâu (Pha 2):** Sử dụng mạng neural sâu và các quy trình tối ưu liên tục (Continuous Optimization) để học đồng thời trọng số cạnh và các hàm chuyển đổi phi tuyến.
 3.  **Tinh chắt nhân quả (Pha 3):** Sử dụng các kỹ thuật học máy ensemble và lý thuyết can thiệp để loại bỏ các cạnh giả định (Pseudo-edges) phát sinh do nhiễu hoặc tương quan gián tiếp.
@@ -62,7 +62,7 @@ Dữ liệu thực tế thường chịu ảnh hưởng nặng nề bởi sự k
 
 ### 3.2.2 Kiểm định HSIC dựa trên Random Fourier Features (RFF)
 
-Trái tim của Pha 1 là khả năng đo lường độ độc lập phi tuyến. Chúng ta sử dụng định lý Hilbert-Schmidt (HSIC). Tuy nhiên, tính toán HSIC truyền thống yêu cầu tính ma trận Gram có độ phức tạp $O(N^2)$. DeepANM giải quyết bài toán này bằng **Định lý Bochner** thông qua cấu trúc ánh xạ đặc trưng ngẫu nhiên.
+Cơ chế cốt lõi của Pha 1 là khả năng đo lường độ độc lập phi tuyến. Chúng ta sử dụng định lý Hilbert-Schmidt (HSIC). Tuy nhiên, tính toán HSIC truyền thống yêu cầu tính ma trận Gram có độ phức tạp $O(N^2)$. DeepANM giải quyết bài toán này bằng **Định lý Bochner** thông qua cấu trúc ánh xạ đặc trưng ngẫu nhiên.
 
 Công thức xấp xỉ Kernel Gaussian bằng RFF:
 
