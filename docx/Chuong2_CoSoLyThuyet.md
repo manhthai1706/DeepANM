@@ -148,7 +148,7 @@ $$ \arg\min_{\beta} \left( ||y - X\beta||^2_2 + \lambda \sum_j \frac{1}{|\hat{\b
 ### 2.5.2 Phân tích tầm quan trọng bằng Random Forest (Permutation Importance)
 
 Để thay thế $\beta_{init}$ dạng tuyến tính quá lỏng lẻo bằng một kỹ thuật mạnh, DeepANM dựa trên mô hình phi tập trung Random Forest (Breiman, 2001). 
-Thuật toán đi hoán vị lộn xộn dọc (Shuffling vertically) một cột dữ liệu của biến nguyên nhân $X_c$. Nếu mô hình Random Forest Regressor bị phân rã chỉ số chính xác (R² Score R-Squared Drop) mạnh > $3\%$, tức là đặc trưng này mang tính sống còn đối với Kết quả. Ngược lại, nếu Shuffle qua lại nhưng chất lượng phán đoán $Y$ vẫn vậy, thì rõ ràng cạnh $X \to Y$ là vô giá trị trong đời thực. 
+Thuật toán đi hoán vị lộn xộn dọc (Shuffling vertically) một cột dữ liệu của biến nguyên nhân $X_c$. Nếu mô hình Random Forest Regressor bị phân rã chỉ số chính xác ($R^2$ Score / R-Squared Drop) mạnh $> 3\%$, tức là đặc trưng này mang tính sống còn đối với Kết quả. Ngược lại, nếu Shuffle qua lại nhưng chất lượng phán đoán $Y$ vẫn vậy, thì rõ ràng cạnh $X \to Y$ là vô giá trị trong đời thực. 
 
 ### 2.5.3 Lọc thông tin gián tiếp qua Độ tương quan Điều kiện phần dư
 
@@ -158,6 +158,6 @@ $$X_1 \perp\!\!\!\perp X_3 \,|\, X_2$$
 Nghĩa là, cho dù Khói Bụi có dày đặc thế nào ($X_1$), nhưng nếu bệnh nhân Đã Khám và Xác nhận Không mắc Bệnh Phổi ($X_2 = \text{False}$), thì tỷ lệ Ho kinh niên $X_3$ hoàn toàn không bị thay đổi.
 Bằng việc mô hình hóa các biến số phi tuyến bằng Histogram-based Gradient Boosting và dùng hệ số Correlation Test Pearson lên phần dư, ta dễ dàng bác bỏ cạnh thừa $X_1 \to X_3$, chỉ giữ lại quan hệ cha-con tinh khiết.
 
-## Tiểu kết
+## 2.6 Tiểu kết
 
-Chương 2 đã hệ thống hóa các định lý nền tảng để giải quyết bài toán khám phá nhân quả, bao gồm biểu diễn không gian DAG, nguyên lý phân tích cấu trúc bất đối xứng theo ANM và kỹ thuật tối ưu hóa liên tục các ma trận chu trình. Những "hạt nhân" toán học này là sơ sở lý thuyết để đồ án hình thành và thiết kế mạng lưới Mạng Neural tổng quát DeepANM sẽ được trình bày tại Chương 3.
+Chương 2 đã hệ thống hóa các cơ sở toán học cấu thành quá trình khám phá nhân quả. Trọng tâm bao gồm Đồ thị DAG, mô hình SEM, nguyên lý bất đối xứng của Nhiễu cộng (ANM) và tối ưu hóa liên tục bằng DAGMA. Các kỹ thuật tiên tiến như xấp xỉ Fourier (RFF) nhằm giải quyết nút thắt tính toán của HSIC, cùng phương pháp chọn cạnh Adaptive LASSO cũng được trình bày chi tiết. Đây là nền tảng lý thuyết tiên quyết để xây dựng và giải thích kiến trúc thực hành của hệ thống DeepANM trong Chương 3.
