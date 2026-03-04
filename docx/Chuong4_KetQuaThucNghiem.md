@@ -103,6 +103,8 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 
 | Thuật toán | SHD | Ghi chú về mô hình |
 | :--- | :--- | :--- |
+| **PC (Spirtes et al., 2000)** | 17 | Thuật toán dựa trên ràng buộc độc lập |
+| **GES (Chickering, 2002)** | 26 | Thuật toán dựa trên điểm số (Score-based) |
 | **NOTEARS (2018)** | 22 | Tối ưu hóa liên tục, giả định tuyến tính |
 | **DAG-GNN (2019)** | 19 | Dựa trên kiến trúc mạng neural (VAE) |
 | **NOTEARS-MLP (2020)** | 16 | Mở rộng phi tuyến của thuật toán NOTEARS |
