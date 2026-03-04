@@ -158,6 +158,6 @@ $$X_1 \perp\!\!\!\perp X_3 \,|\, X_2$$
 Nghĩa là, cho dù Khói Bụi có dày đặc thế nào ($X_1$), nhưng nếu bệnh nhân Đã Khám và Xác nhận Không mắc Bệnh Phổi ($X_2 = \text{False}$), thì tỷ lệ Ho kinh niên $X_3$ hoàn toàn không bị thay đổi.
 Bằng việc mô hình hóa các biến số phi tuyến bằng Histogram-based Gradient Boosting và dùng hệ số Correlation Test Pearson lên phần dư, ta dễ dàng bác bỏ cạnh thừa $X_1 \to X_3$, chỉ giữ lại quan hệ cha-con tinh khiết.
 
-## 2.6 Tổng kết chương
+## Tiểu kết
 
-Chương 2 đã cung cấp bức tranh toàn cảnh về nền tảng lý thuyết cần thiết để cấu trúc nên một mô hình học máy khám phá nhân quả. Trọng tâm của chương nằm ở việc hệ thống hóa khái niệm Đồ thị DAG, nguyên lý phân tích bất đối xứng của Mô hình Nhiễu cộng (ANM) và cách thức chuyển đổi bài toán tìm kiếm đồ thị rời rạc thành tối ưu hóa hàm phạt liên tục thông qua DAGMA/NOTEARS. Bên cạnh đó, các công cụ toán học tối quan trọng như kỹ thuật xấp xỉ RFF để giải quyết độ trễ của HSIC, hay phương pháp chọn cạnh phi tuyến bằng Random Forest kết hợp độc lập có điều kiện cũng đã được phân tích chi tiết. Đây là những khối "lego" học thuật đặc biệt cần thiết, đóng vai trò là tiền đề tiên quyết để đồ án giải quyết hệ kiến trúc đường ống phức tạp của hệ thống mạng Neural DeepANM tại Chương 3.
+Chương 2 đã hệ thống hóa các định lý nền tảng để giải quyết bài toán khám phá nhân quả, bao gồm biểu diễn không gian DAG, nguyên lý phân tích cấu trúc bất đối xứng theo ANM và kỹ thuật tối ưu hóa liên tục các ma trận chu trình. Những "hạt nhân" toán học này là sơ sở lý thuyết để đồ án hình thành và thiết kế mạng lưới Mạng Neural tổng quát DeepANM sẽ được trình bày tại Chương 3.
