@@ -145,19 +145,30 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 
 ```mermaid
 graph TD
-    subgraph MLP_Architect ["Kiến trúc Mạng Neural DeepANM"]
-        In["Input X"] --> En_Net["Encoder:<br/>Linear+GELU+Norm"]
-        En_Net --> Gumbel["Gumbel-Softmax<br/>(Mechanism Z)"]
+    subgraph MLP_Detail ["Chi tiết Thành phần Neural (mlp.py)"]
+        In["Đầu vào X"] --> En["Encoder (Phân cụm)"]
+        subgraph Encoder_Path ["Khối Encoder"]
+            En --> E1["Linear + Norm<br/>+ GELU + Dropout"]
+            E1 --> E2["Linear + Norm<br/>+ GELU"]
+            E2 --> ZL["Logits Layer"]
+            ZL --> GS["Gumbel-Softmax<br/>Sampling"]
+        end
+
+        In --> SEM["ANM_SEM (Hàm cơ sở)"]
+        subgraph SEM_Path ["Khối SEM"]
+            SEM --> IP["Input Projection"]
+            IP --> RB["Residual Blocks<br/>(Res-MLP)"]
+            RB --> OP["Output Projection"]
+            OP --> Mu["Kết quả mu_j"]
+        end
+
+        Mu --> Dec["Monotonic Decoder<br/>(PNL Transform)"]
+        Dec --> YH["Dự đoán Y_hat"]
+
+        GS -->|"Z mechanism"| NLL["GMM Noise Model<br/>(Heterogeneous)"]
+        YH --> NLL
         
-        In --> Mask["W-Logits Mask"]
-        Mask --> SEM_Res["SEM: Residual<br/>MLP Blocks"]
-        SEM_Res --> mu["Dự đoán mu_j"]
-        
-        mu --> Decoder["Monotonic Decoder:<br/>Softplus weight"]
-        Gumbel -->|Z| Final["Tái cấu trúc &<br/>GMM Likelihood"]
-        Decoder --> Final
-        
-        Final --> Loss["Total Loss:<br/>MSE+NLL+h(W)"]
+        NLL --> Loss["Loss: MSE + NLL + KL"]
     end
 ```
 <p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
