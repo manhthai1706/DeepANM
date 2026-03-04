@@ -155,20 +155,20 @@ graph TD
     
     Z --> SEM_Block
     
-    subgraph SEM_Block ["2. Khối SEM (Lõi)"]
+    subgraph SEM_Block ["2. Khối SEM (ANM_SEM)"]
         In --> Mask["W-Masking"]
         Mask --> Res["Res-MLP Blocks"]
         Res --> Mu["Dự đoán mu_j"]
     end
     
     subgraph Dec_Block ["3. Khối Decoder & Nhiễu"]
-        Mu --> Dec["PNL Decoder"]
-        Dec --> YH["Dự đoán Y_hat"]
-        YH --> GMM["GMM Noise (NLL)"]
-        Z -->|cluster weight| GMM
+        Mu --> PNL["PNL Decoder"]
+        PNL --> YH["Dự đoán Y_hat"]
+        YH --> Noise["Heterogeneous<br/>Noise Model (GMM)"]
+        Z -->|cluster weight| Noise
     end
     
-    GMM --> Loss["Loss: MSE+NLL+h(W)"]
+    Noise --> Loss["Loss: MSE+NLL+h(W)"]
 ```
 <p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
 
