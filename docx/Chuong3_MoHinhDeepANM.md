@@ -63,33 +63,26 @@ Dữ liệu tự nhiên thường chứa các giá trị biên cực dải (Extr
 
 Mạng Neural sử dụng hàm phi lồi (Non-convex) như Sigmoid và L2 Penalty (MSE Loss) cực kỳ nhạy cảm và dễ vỡ gradient bởi các nhiễu lớn bùng nổ này. Hệ thống được trang bị bộ Tiền xử lý hai lớp:
 
-1. **Isolation Forest (Cách ly ngoại lệ):** Khởi chạy một tập các Cây quyết định ngẫu nhiên (Random isolation trees) chia tách không gian liên tục (Liu et al., 2008). Nếu một điểm dữ liệu (Patient / Sample) bị tách rời khỏi quần thể chỉ sau độ sâu dưới $\log_2 n$, điểm đó bị đánh nhãn vĩnh viễn là "Anomalies" (Nhiễu cực trị) và loại khỏi quá trình Huấn luyện Nhân quả để bảo toàn hàm Mất mát MSE.
-2. **Quantile Transformer (Ép chuẩn Phân phối Năng lượng):** Ràng buộc Gaussian là tiên quyết cho các kỹ thuật Lasso. Bất kể dữ liệu phân bố hàm Mũ (Exponential), đa đỉnh phân mảnh (Multimodal), Quantile Normalization phân bổ vị trí thứ tự theo CDF (Hàm phân phối tích lũy) ép hình parabol Bell Curve khít cho mọi biến độc lập:
-   $$X_{\text{norm}, i} = \Phi^{-1} \left( F_{\text{emp}}(X_i) \right)$$
-   Với $\Phi^{-1}$ là hàm Probit phân phối chuẩn nghịch đảo và $F_{\text{emp}}$ là CDF Tích lũy thực nghiệm. Cấu hình này giúp ổn định không gian Loss Topology của DAGMA, bảo đảm mọi Gradient trượt trên một bình nguyên mượt.
+1. **Isolation Forest (Cách ly ngoại lệ):** Khởi chạy một tập các Cây quyết định ngẫu nhiên nhằm chia tách dữ liệu. Nếu một điểm dữ liệu bị tách rời quá nhanh khỏi quần thể, nó bị coi là nhiễu cực đại và loại bỏ để bảo vệ sự ổn định của quá trình huấn luyện.
+2. **Quantile Transformer (Chuẩn hóa Phân phối):** Để đảm bảo các thuật toán tối ưu hoạt động mượt mà, hệ thống ép mọi biến số về phân phối Chuẩn (Gaussian) theo hình chuông. Việc này giúp loại bỏ sự chênh lệch về thang đo (Scale) và hình dạng phân phối kỳ dị của dữ liệu thô.
+
+Mục tiêu cuối cùng của bước này là tạo ra một "sàn đấu" bằng phẳng nhất cho mô hình học máy, nơi các tín hiệu nhân quả không bị che lấp bởi các giá trị ngoại lai hay sự sai khác đơn vị quá lớn.
 
 ### 3.2.2 Thuật toán Greedy Sink-First Topological Ordering
 
 TopoSort là khâu tìm thứ tự hoán vị $\pi$ của các biến số sao cho nếu $\pi(i) < \pi(j)$ thì $X_{\pi(j)}$ tuyệt đối không thể là Nguyên nhân gây ra $X_{\pi(i)}$. Đây là tính chất của dòng chảy thông tin DAG.
 Khác với thuật toán sắp xếp dựa vào rễ (Leaf/Source First), quy trình học máy ANM bộc lộ tính độc lập phần dư cực đoan (Independence of residual signals) khi bóc vỏ biến Kết quả (Sink Nodes).
 
-DeepANM áp dụng thuật toán **Sắp xếp Chìm tham lam (HSIC Greedy Sink-First Ordering)**:
-Thuật toán tìm kiếm từng phần tử một đặt vào đuôi danh sách có dạng đệ quy như sau:
+DeepANM áp dụng thuật toán **Sắp xếp Chìm tham lam (HSIC Greedy Sink-First Ordering)** dựa trên tư tưởng: "Nếu xoa bỏ hết các nguyên nhân, phần còn lại của một kết quả phải hoàn toàn ngẫu nhiên và độc lập".
 
-**Đầu vào:** Biến số $\{X_1, X_2, \dots, X_d\}$.
-**Đầu ra:** Thứ tự các biến $C = (c_1, \dots, c_d)$.
-**Lặp** từ $k = d, d-1, \dots, 1$ cho đến khi tập Biến rỗng:
-1. Đặt tất cả phần tử còn lại là Nhóm Cha giả định $S$.
-2. Vỡi mỗi biến $X_i \in S$, coi $X_i$ là Nút Đích (Sink). Dùng Hồi quy chuẩn Ridge (Ridge Regression) hoặc Random Forest học mô hình quy ngược toàn bộ tập $S \setminus \{X_i\}$ để tái diễn $X_i$:
-   $$X_{i} \approx \sum_{j \neq i} \beta_j X_j \to \text{Phần dư: } \varepsilon_i = X_i - \hat{X}_i$$
-3. Tính Hàm Chi Phí Phụ Thuộc (Dependence Score Cost) thông qua toán tử:
-   $$ \text{Score}_i = \sum_{j \neq i} \text{FastHSIC}(\varepsilon_i, X_j) $$
-4. **Quy tắc quyết định (Causal Identifiability):** Nếu $X_i$ thực sự là Sink Node (Đầu ra cuối rễ của nhánh), theo định lý ANM Bất đối xứng, phần dư $\varepsilon_i$ bắt buộc phải độc lập hoàn toàn với toàn bộ tổ tiên $X_j$. Hệ quả là Hàm phụ thuộc **$\text{Score}_i \to 0$**.
-5. Do đó, chọn Nút đích chính xác là Nút làm Hồi quy $\varepsilon$ độc lập nhất:
-   $$X_{sink} = \arg\min_{i \in S} \text{Score}_i$$
-6. Tách $X_{sink}$ đưa vào vị trí thứ $k$ của kết quả $C$: $c_k = X_{sink}$, loại $X_{sink}$ khỏi tập biến và lặp tiếp.
+**Quy trình logic:**
+1.  Giả định toàn bộ các biến là tổ tiên, thử nghiệm từng biến một đóng vai trò là "nút đích" (kết quả cuối cùng).
+2.  Sử dụng một mô hình học máy nhanh để dự đoán nút đích đó từ các biến còn lại.
+3.  Tính toán độ độc lập thống kê (thông qua chỉ số HSIC) giữa sai số dự đoán và các biến cha.
+4.  Nút nào có sai số "sạch" nhất (độc lập nhất) sẽ được chọn làm nút đích và đưa vào cuối danh sách.
+5.  Loại bỏ nút đó và lặp lại cho đến khi sắp xếp xong toàn bộ hệ thống.
 
-Sử dụng thuật toán RFF-HSIC (Phương pháp đặc trưng Fourier) làm thước đo sự phụ thuộc thống kê đã biến một quy trình cần chi phí $O(d^2 \cdot N^2)$ rụng thành khối lệnh tốn vài giây xử lý O($d^2 \cdot N \cdot D$) siêu việt. Hoán vị $\pi$ này đóng vai trò định hướng sự phạt ALM Barrier trong mạng Neural Mệnh đề kế tiếp.
+Kết quả của Pha 1 là một **Thứ tự Topological**, đóng vai trò là "kim chỉ nam" ngăn chặn việc mạng nơ-ron tạo ra các vòng lặp nghịch lý trong các bước tiếp theo.
 
 ---
 
@@ -97,7 +90,18 @@ Sử dụng thuật toán RFF-HSIC (Phương pháp đặc trưng Fourier) làm t
 
 DeepANM đưa ra cơ chế mô hình hóa Phương trình Cấu trúc (Structural Equations) cực kỳ mềm dẻo. Trong tự nhiên thực tế, cơ chế tự tác động gây ra hậu quả (Transfer Functions) giữa 2 biến không tồn tại dưới dạng 1 phương trình tuyến tính chung chung, mà thường bị xẻ nhỏ thành vô số cụm (Clusters) khác nhau. Ví dụ: Cơ chế Thuốc hạ Glucose hoạt động rất yếu trên người Béo phì so với người Bình thường do kháng Insulin (Hiện tượng Nhiễu không đồng nhất - Multimodal Heteroscedasticity).
 
-Để giải quyết, tôi thiết kế và tích hợp lõi GPPOMC kết cấu thành một đường ống **Encoder (Phân cụm) $\to$ SEM (Phương trình trọng số) $\to$ Decoder (Dịch nhiễu)** đồ sộ.
+Để giải quyết, tôi thiết kế và tích hợp lõi GPPOMC kết cấu thành một vòng lặp logic khép kín:
+
+```mermaid
+graph LR
+    Input[Dữ liệu X] --> Encoder[Encoder: Phân cụm Cơ chế]
+    Input --> Mask[Ma trận Trọng số W]
+    Mask --> SEM[SEM: Học Phương trình Nhân quả]
+    Encoder -->|Z| SEM
+    SEM -->|Dự đoán| Decoder[Decoder: Tái cấu trúc & Tính Nhiễu]
+    Decoder --> Output[Hàm Loss Đa mục tiêu]
+    Output -->|Backprop| Mask
+```
 
 ### 3.3.1 Kiến trúc các Khối Mạng (Module Architecture)
 
@@ -126,12 +130,11 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 
 Với hàng chục ngàn trọng số Param thiết kế, GPPOMC định hướng Back-propagation thông qua hàm Loss đồ sộ hòa trộn 4 chỉ số cực tiểu hóa. Đặt $\Theta$ là toàn tập Parameters của Neural Networks và $W$ là Ma trận kề Causal Graph DAG logit. 
 
-$$ \mathcal{L}_{\text{toàn cục}} = \gamma_1 \mathcal{L}_{\text{Base MSE}} + \gamma_2 \mathcal{L}_{\text{NLL Noise}} + \gamma_3 \mathcal{L}_{\text{L2 Reg}} + KL_z + \Lambda_{\text{DAGMA}}(W)$$
-
-**A. Khối Hàm Lỗi Tiên Tiệm (Base Loss & Likelihood):**
-1. $\mathcal{L}_{\text{Base MSE}} = \frac{1}{N} \sum || X - \hat{\mu}_{sem}(\Theta) ||_2^2 $: Hàm căn bản đánh giá chất lượng tái tạo (Reconstruction Error) tương đương với các AutoEncoder. 
-2. $\mathcal{L}_{\text{NLL Noise}} = - \mathbb{E} [ \log P(\varepsilon_j | \sigma_z, \mu_z)]$: Hàm Negative Log-Likelihood (Tối đa hợp lí biên phần dư). Nếu $X$ bị mô hình giải thích theo nhầm cụm cơ chế $Z$, nhiễu sẽ lớn và đẩy NLL lên cao. Tối ưu cực tiểu NLL ép Mạng Deep Learning co cụm phương sai và tìm ra điểm ổn định của GMM Phân mảnh.
-3. KLD (KL-Divergence): Tối ưu độ khác biệt phân phối đồng đều của Biến chọn cụm (hạn chế Node vón cục lười biếng về 1 Cơ chế).
+Hàm Loss được thiết kế để cân bằng giữa sự chính xác của mô hình và tính hợp lệ của đồ thị:
+1. **Lỗi Tái cấu trúc:** Ép mô hình phải dự đoán đúng giá trị của các biến từ các biến cha của chúng.
+2. **Độ hợp lý của Nhiễu (NLL):** Đảm bảo phần sai số của mô hình tuân theo các quy luật thống kê tự nhiên, không bị vặn vẹo quá mức.
+3. **KL Divergence:** Ngăn chặn việc mô hình chỉ tập trung vào một cơ chế duy nhất, ép nó phải khám phá sự đa dạng của dữ liệu.
+4. **Rào chắn Phi chu trình (DAGMA):** Đây là thành phần quan trọng nhất, đóng vai trò như một lực đẩy cực mạnh ngăn cản các vòng lặp (Cycles) xuất hiện trong đồ thị.
 
 **B. Rào chắn Tối ưu Phi Chu Trình DAGMA (Acyclicity Constraint):**
 
@@ -144,34 +147,24 @@ $$ h_{DAGMA}(W) = - \log \det(\mathbf{I} - \alpha W \circ W) $$
 
 Vì bài toán yêu cầu Cực tiểu $\mathcal{L}_{\text{toàn cục}}$ VỚI ĐIỀU KIỆN RÀNG BUỘC (Subject to constraint) $h_{DAGMA}(W) = 0$. Hai không gian này mâu thuẫn (Mạng càng tạo chu trình Cycle, Loss MSE càng nhỏ). Do vậy, tôi triển khai thuật toán ALM lừng danh (Bertsekas, 1982). Quá trình huấn luyện không chỉ dốc xuống bằng thuật toán Gradient Adam truyền thống một chiều mà gồm 2 vòng lặp (Dual-Loop Optimization):
 
-**Thuật toán ALM Loop Lõi (Mã giả của quá trình Training Epoch):**
-```python
-# Lặp Vòng Lớn cho ALM Hyperparameters:
-For v in range(1, NUM_DUAL_ITERATIONS=10):
-    
-    # Lặp Vòng Học Mạng Neural Sâu
-    For epoch in range(Epochs_per_Iteration):
-        1. Lấy Batch Tensor Data X
-        2. Sinh Ma trận Trọng số mask cạnh dựa trên W_logits
-           W_raw = sigmoid(W_logits)
-        3. Truyền X -> Gumbel Encoder -> Tính Z
-        4. Masked_X = X * W_raw
-        5. Lặp qua Masked_X -> SEM MLP -> Tính L_base, L_NLL
-        6. Tính Penalty h(W) bằng SVD hoặc Determinant chéo.
-        7. Tính Tổng Loss Hàm Phạt:
-           Loss_ALM = Penalty_Base + Khởi_động_Lagrange * h(W) + (Rho / 2) * h(W)^2
-        8. Backpropagate Loss_ALM và cập nhật Toàn Bộ Mạng (Adam_Optimizer.step())
-        
-    # Hết Epoch vòng trong, Cập nhật vòng lớn:
-    h_val = Đánh_giá lại h(W_hiện_tại)
-    If h_val > Mức_chấp_nhận_Cũ * 0.25:
-          Rho_hệ_số_phạt *= 10  # Phạt nặng hàm chu kỳ lên 10 lần
-    Else:
-          Ghi nhận h_val.
-    Cập nhật Nhân Tử Lagrange_Multiplier += Rho * h_val
+```mermaid
+sequenceDiagram
+    participant ALM as Vòng lặp ALM (Ngoài)
+    participant Opt as Tối ưu hóa Adam (Trong)
+    participant Graph as Đồ thị Nhân quả W
+
+    ALM->>Opt: Bắt đầu với hệ số phạt nhẹ
+    loop Huấn luyện Epoch
+        Opt->>Graph: Cập nhật trọng số để giảm Loss
+        Graph->>Opt: Tính toán vi phạm Chu trình h(W)
+    end
+    Opt->>ALM: Trả về đồ thị hiện tại
+    ALM->>ALM: Kiểm tra ràng buộc
+    Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
+    ALM->>Opt: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
 
-Kỹ thuật ALM đẩy giá trị $\rho$ (hệ số cấm chập mạch) to lên theo thời gian. Giai đoạn đầu, ALM "nhắm mắt làm ngơ" cho mạng Neural đi vẽ lung tung chu trình khép kín nhằm học cách dự đoán nhanh $f_{SEM}$. Nhưng dần về sau, khi $\rho$ xấp xỉ vô cực, $\mathcal{L}_{\text{toàn cục}}$ bị kéo tăng đột biến, hệ thống Mạng Neural TỰ ĐỘNG TỰ CẮT CẠNH YẾU NHẤT (cắt dây chuyền yếu nhất) để triệt tiêu Cycle, hạ $h_{DAGMA}(W)$ về bằng đúng số Zeros, phá vòng xoáy nhưng giữ được đường dây nhân quả chân quang nhất. 
+Kỹ thuật ALM đẩy hệ số cấm chập mạch to lên theo thời gian. Giai đoạn đầu, mô hình được tự do khám phá các mối quan hệ. Nhưng dần về sau, khi hình phạt xấp xỉ vô cực, hệ thống mạng nơ-ron buộc phải tự cắt bỏ những mắt xích yếu nhất để triệt tiêu các vòng lặp, chỉ giữ lại những đường dây nhân quả cốt lõi nhất.
 
 ---
 
@@ -181,33 +174,27 @@ Kết thúc Pha 2 Mạng Neural, chúng ta thu được một Ma trận $W_{raw}
 
 Hầu hết hệ thống trên thế giới dùng một Threshold Tĩnh (Tất cả cạnh $< 0.3$ cắt bỏ). Điều này hết sức ngớ ngẩn do không phân định quan trọng trong từng cấu trúc (Biến $A$ có Range 10 triệu, Biến $B$ Rate 0.5, thì $W_{ij} = 0.02$ có thể là nhân quả sống còn chấn động hệ gen). 
 
-Dự án DeepANM triển khai bộ thiết kế lọc 2 cổng kết hợp **Adaptive LASSO + Random Forest CI**.
+Dự án DeepANM triển khai bộ thiết kế lọc 2 cổng (Double-Gate) cực kỳ chặt chẽ:
+
+```mermaid
+graph TD
+    Raw[Đồ thị thô Phase 2] --> Gate1[Cổng 1: Neural Jacobian ATE]
+    Raw --> Gate2[Cổng 2: Random Forest Importance]
+    Gate1 --> Logic{Kết hợp & Lọc}
+    Gate2 --> Logic
+    Logic --> CI[Cổng 3: Test Độc lập Điều kiện CI]
+    CI --> Final[DAG Cuối cùng]
+```
 
 ### 3.4.1 Màng Lọc Cơ Sở Jacobian (Neural ATE Score)
 
-Đừng để Mạng Neural chỉ học xong, hãy ép nó tính Giải tích hệ quả. Dựa trên toán học Giải tích Can Thiệp Do-Calculus (Judea Pearl), ATE (Tác động điều trị trung bình) được xác định bởi vi phân từng phần xuyên chuỗi đạo hàm (Jacobian):
-Hệ thống cấp Backprop ngược chiều lấy chuỗi phương trình SEM vừa huận luyện xong để đo Đạo hàm cục bộ (Local Gradients) của Output $X_j$ dựa trên Input $X_i$:
+Dựa trên lý thuyết can thiệp của Judea Pearl, ATE đo lường sự thay đổi của biến "Con" khi chúng ta tác động trực tiếp vào biến "Cha". DeepANM ép mạng nơ-ron phải tính toán: "Nếu tôi rung lắc nhẹ giá trị của biến Cha, biến Con sẽ phản ứng bao nhiêu?". Những cạnh có phản ứng quá yếu sẽ bị coi là nhiễu và loại bỏ ngay lập tức.
 
-$$ \text{ATE}_{ij} = \frac{1}{N} \sum_{k=1}^N \left| \frac{\partial \hat{f}_{\text{SEM, j}}(X^{(k)})}{\partial X_i^{(k)}} \right| $$
+### 3.4.2 Màng Lọc Permutation Importance (Random Forest)
 
-Việc tính đạo hàm riêng (Partial Derivative) tiết lộ chính xác 1 sự biến thiên (Wiggle) của biến Cha có năng lực tạo ra bao nhiêu Biên độ Dao động (Amplitude response) cho biến Con trên toàn bộ tệp phân phối thực tế. Nó mang tính biểu đạt (Expressivity) cao hơn hẳn ma trận Trọng số thuần $W_{raw}$.
-DeepANM sẽ loại bỏ các cạnh mà ở đó giá trị ATE Score của nó lọt thỏm dưới Percentile thứ 15 của tập Jacobian mẫu (Threshold trượt động/Dynamic thresholding).
+Để kiểm chứng lại một lần nữa bằng một phương pháp hoàn toàn khác, hệ thống sử dụng Rừng ngẫu nhiên (Random Forest). Chúng ta thử xáo trộn hoàn toàn dữ liệu của biến Cha. Nếu sau khi xáo trộn mà mô hình vẫn dự đoán tốt biến Con, chứng tỏ biến Cha đó chẳng có vai trò gì cả. Chỉ những biến nào mà việc xáo trộn nó gây ra một "cú sốc" sụt giảm độ chính xác mới được giữ lại.
 
-### 3.4.2 Màng Lọc Permutation Importance (Random Forest OOB)
-
-Để bảo vệ hệ thống khỏi những tương quan hàm phi tuyến không thuần, Random Forest (Rừng ngẫu nhiên - Thuật toán Decision Tree Ensembles vĩ đại của Breiman) được triệu hồi để đo lường tầm quan trọng.
-
-Quy trình Tính R-Squared Permutation được hệ thống code DeepANM thực thể theo các thao tác đâm xuyên (Vertical Shuffle):
-1. Huấn luyện Random Forest Regressor giả lập tái sinh Biến $X_j$ dựa trên tập hợp toàn bộ tổ tiên của nó được đánh dấu bởi Pha 1 (TopoSort Order). Ghi nhận chất lượng độ khớp chuẩn: $R^2_{\text{bình thường}}$.
-2. Xáo trộn cực tả (Shuffle Uniformally) duy nhất cột Feature của ứng viên cha $X_i$ khiến phân phối của nó đối với các quan sát hoàn toàn phá vỡ.
-3. Cho dữ liệu đã xáo trộn này đi vào mô hình RF vừa luyện, thu thập chất lượng tái sinh mới $R^2_{\text{xáo trộn}}$.
-4. Tầm quan trọng của Cạnh $X_i \to X_j$ được minh chứng bằng cú Sốc Mất mát:
-   **Importance Score** = $R^2_{\text{bình thường}} - R^2_{\text{xáo trộn}}$
-5. Nếu cú sốc không làm thay đổi kết quả Model ($Drop < 0.05$), tác nhân này hoàn toàn là Nhiễu. Cạnh bị băm nát và loại bỏ.
-
-### 3.4.3 Loại Bỏ Trực tiếp Liên kết Gián Tiếp (Partial Conditional Independence)
-
-Như phân tích ở Chương 2, Mạng Học sâu không thể tránh việc nối Cạnh cho đường Gián Cầu (A $\to$ B $\to$ C, Dẫn đến nối nhầm A $\to$ C).
+### 3.4.3 Loại Bỏ Liên kết Gián Tiếp (Partial Correlation)
 Thuật toán gạt nhầm nhánh gián tiếp dựa vào **Cây Tăng Cường Tốc độ (HistGradientBoostingRegressor)**:
 - Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - \text{Nonlinear Model}(A, \text{với tập } B)$
 - Dự đoán $C$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{C|B} = C - \text{Model}(C, \text{với tập } B)$
