@@ -145,31 +145,30 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 
 ```mermaid
 graph TD
-    subgraph MLP_Detail ["Chi tiết Thành phần Neural (mlp.py)"]
-        In["Đầu vào X"] --> En["Encoder (Phân cụm)"]
-        subgraph Encoder_Path ["Khối Encoder"]
-            En --> E1["Linear + Norm<br/>+ GELU + Dropout"]
-            E1 --> E2["Linear + Norm<br/>+ GELU"]
-            E2 --> ZL["Logits Layer"]
-            ZL --> GS["Gumbel-Softmax<br/>Sampling"]
-        end
-
-        In --> SEM["ANM_SEM (Hàm cơ sở)"]
-        subgraph SEM_Path ["Khối SEM"]
-            SEM --> IP["Input Projection"]
-            IP --> RB["Residual Blocks<br/>(Res-MLP)"]
-            RB --> OP["Output Projection"]
-            OP --> Mu["Kết quả mu_j"]
-        end
-
-        Mu --> Dec["Monotonic Decoder<br/>(PNL Transform)"]
-        Dec --> YH["Dự đoán Y_hat"]
-
-        GS -->|"Z mechanism"| NLL["GMM Noise Model<br/>(Heterogeneous)"]
-        YH --> NLL
-        
-        NLL --> Loss["Loss: MSE + NLL + KL"]
+    In["Đầu vào X"]
+    
+    subgraph Enc_Block ["1. Khối Encoder"]
+        In --> E1["Linear + GELU"]
+        E1 --> E2["Softmax / Gumbel"]
+        E2 --> Z["Cơ chế Z (Latent)"]
     end
+    
+    Z --> SEM_Block
+    
+    subgraph SEM_Block ["2. Khối SEM (Lõi)"]
+        In --> Mask["W-Masking"]
+        Mask --> Res["Res-MLP Blocks"]
+        Res --> Mu["Dự đoán mu_j"]
+    end
+    
+    subgraph Dec_Block ["3. Khối Decoder & Nhiễu"]
+        Mu --> Dec["PNL Decoder"]
+        Dec --> YH["Dự đoán Y_hat"]
+        YH --> GMM["GMM Noise (NLL)"]
+        Z -->|cluster weight| GMM
+    end
+    
+    GMM --> Loss["Loss: MSE+NLL+h(W)"]
 ```
 <p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
 
