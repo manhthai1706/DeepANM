@@ -8,7 +8,7 @@ Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng 
 
 ### 3.1.1 Tư tưởng "Chia để trị" trong Khám phá Nhân quả
 
-Triết lý cốt lõi của DeepANM là sự phân rã trách nhiệm giữa các tầng xử lý (được cài đặt trong lớp `DeepANM` tại `src/models/deepanm.py`):
+Triết lý cốt lõi của DeepANM là sự phân rã trách nhiệm giữa các tầng xử lý:
 1.  **Hạn chế không gian (Pha 1):** Sử dụng các kiểm định thống kê phi tham số để xác định trật tự dòng chảy thông tin (Causal Ordering), giúp thu hẹp không gian tìm kiếm từ $2^{O(d^2)}$ xuống một tập hợp các đồ thị tuân thủ thứ tự topo.
 2.  **Mô hình hóa sâu (Pha 2):** Sử dụng mạng neural sâu và các quy trình tối ưu liên tục (Continuous Optimization) để học đồng thời trọng số cạnh và các hàm chuyển đổi phi tuyến.
 3.  **Tinh chắt nhân quả (Pha 3):** Sử dụng các kỹ thuật học máy ensemble và lý thuyết can thiệp để loại bỏ các cạnh giả định (Pseudo-edges) phát sinh do nhiễu hoặc tương quan gián tiếp.
@@ -62,17 +62,17 @@ Dữ liệu thực tế thường chịu ảnh hưởng nặng nề bởi sự k
 
 ### 3.2.2 Kiểm định HSIC dựa trên Random Fourier Features (RFF)
 
-Trái tim của Pha 1 là khả năng đo lường độ độc lập phi tuyến. Chúng ta sử dụng định lý Hilbert-Schmidt (HSIC). Tuy nhiên, tính toán HSIC truyền thống yêu cầu tính ma trận Gram có độ phức tạp $O(N^2)$. DeepANM giải quyết bài toán này bằng **Định lý Bochner** thông qua lớp `RFFGPLayer` trong `src/core/gppom_hsic.py`.
+Trái tim của Pha 1 là khả năng đo lường độ độc lập phi tuyến. Chúng ta sử dụng định lý Hilbert-Schmidt (HSIC). Tuy nhiên, tính toán HSIC truyền thống yêu cầu tính ma trận Gram có độ phức tạp $O(N^2)$. DeepANM giải quyết bài toán này bằng **Định lý Bochner** thông qua cấu trúc ánh xạ đặc trưng ngẫu nhiên.
 
 Công thức xấp xỉ Kernel Gaussian bằng RFF:
 $$
 \phi(x) = \sqrt{\frac{2}{D}} \cos(Wx + b)
 $$
-Trong đó $W$ được lấy mẫu từ phân phối Normal. Kỹ thuật này chuyển đổi bài toán kernel phức tạp thành các phép nhân ma trận tuyến tính, giúp tốc độ tính toán tăng gấp hàng chục lần nhưng vẫn giữ được độ chính xác cao (Xem lớp `FastHSIC`).
+Trong đó $W$ được lấy mẫu từ phân phối Normal. Kỹ thuật này chuyển đổi bài toán kernel phức tạp thành các phép nhân ma trận tuyến tính, giúp tốc độ tính toán tăng gấp hàng chục lần nhưng vẫn giữ được độ chính xác cao (Xem cơ chế Fast-HSIC).
 
 ### 3.2.3 Thuật toán Sắp xếp Chìm (Greedy Sink-First)
 
-Triển khai trong `src/core/toposort.py`, thuật toán này lặp lại quy trình tìm kiếm "biến kết quả" (Sink node). Một biến $X_k$ được coi là Sink nếu nó không gây ra bất kỳ biến nào khác trong tập còn lại. Về mặt thống kê, điều này có nghĩa là sai số của phép hồi quy $X_k$ dựa trên tất cả các biến còn lại phải độc lập tối đa với tập nguyên nhân đó. Độ độc lập được định lượng bằng chỉ số HSIC xấp xỉ qua RFF, đảm bảo tính chính xác ngay cả với các quan hệ phi tuyến phức tạp.
+Thuật toán này lặp lại quy trình tìm kiếm "biến kết quả" (Sink node). Một biến $X_k$ được coi là Sink nếu nó không gây ra bất kỳ biến nào khác trong tập còn lại. Về mặt thống kê, điều này có nghĩa là sai số của phép hồi quy $X_k$ dựa trên tất cả các biến còn lại phải độc lập tối đa với tập nguyên nhân đó. Độ độc lập được định lượng bằng chỉ số HSIC xấp xỉ qua RFF, đảm bảo tính chính xác ngay cả với các quan hệ phi tuyến phức tạp.
 
 ## 3.3 Pha 2: Mô hình hóa lõi Deep Neural SCM (GPPOM-HSIC)
 
@@ -105,11 +105,11 @@ graph TD
 
 ### 3.3.1 Kiến trúc Mạng MLP Thặng dư và Phân cụm Cơ chế
 
-Như được cài đặt trong `src/core/mlp.py`, DeepANM không coi quan hệ giữa các biến là duy nhất. Thay vào đó, mô hình hỗ trợ **Cơ chế Hỗn hợp (Mechanism Clustering)**:
+DeepANM không coi quan hệ giữa các biến là duy nhất. Thay vào đó, mô hình hỗ trợ **Cơ chế Hỗn hợp (Mechanism Clustering)**:
 1.  **Encoder VAE:** Sử dụng các lớp `Linear`, `LayerNorm` và `GELU` để dự đoán xác suất ẩn $Z$ nhằm xác định điểm dữ liệu thuộc cụm cơ chế nào. 
-2.  **Gumbel-Softmax Trick:** Để tính toán đạo hàm thông qua các biến rời rạc $Z$, DeepANM sử dụng phân phối Gumbel-Softmax với quy trình **Temperature Annealing** (nhiệt độ giảm dần từ 1.0 xuống 0.1 được điều phối bởi `trainer.py`). 
+2.  **Gumbel-Softmax Trick:** Để tính toán đạo hàm thông qua các biến rời rạc $Z$, DeepANM sử dụng phân phối Gumbel-Softmax với quy trình **Temperature Annealing** (nhiệt độ giảm dần từ 1.0 xuống 0.1 được điều phối bởi hệ thống huấn luyện). 
 3.  **ANM_SEM Residual Blocks:** Khối trung tâm sử dụng kiến trúc Res-MLP. Kết nối thặng dư giúp mạng không bị bão hòa gradient và hỗ trợ học các hàm đồng nhất (Identity) một cách dễ dàng khi cần thiết.
-4.  **Heterogeneous Noise Model:** Cài đặt lớp `HeterogeneousNoiseModel` cho phép mô hình dự báo phương sai nhiễu khác nhau cho từng cụm cơ chế, giúp xử lý các hệ thống có độ bất định cao.
+4.  **Heterogeneous Noise Model:** Chế độ xử lý nhiễu không đồng nhất cho phép mô hình dự báo phương sai nhiễu khác nhau cho từng cụm cơ chế, giúp xử lý các hệ thống có độ bất định cao.
 
 ```mermaid
 graph TD
@@ -142,14 +142,14 @@ graph TD
 
 ### 3.3.2 Tối ưu hóa Lagrangian Tăng cường (Augmented Lagrangian Method)
 
-Quá trình huấn luyện thực thi trong `src/utils/trainer.py` được điều phối bởi thuật toán ALM nhằm ép đồ thị về dạng DAG mà không làm giảm độ chính xác dự đoán.
+Quá trình huấn luyện được điều phối bởi thuật toán ALM nhằm ép đồ thị về dạng DAG mà không làm giảm độ chính xác dự đoán.
 
 Công thức tối ưu hóa kép trong DeepANM:
 
 $$
 \min_{\Theta, W} \mathcal{L}(\Theta, W) + \alpha \cdot h(W) + \frac{\rho}{2} |h(W)|^2
 $$
-Trong đó $h(W)$ là hàm phạt DAGMA. Bộ huấn luyện `DeepANMTrainer` sử dụng trình tối ưu **AdamW** với trọng số suy giảm (weight decay) để kiểm soát độ phức tạp của mô hình.
+Trong đó $h(W)$ là hàm phạt DAGMA. Hệ thống sử dụng trình tối ưu **AdamW** với trọng số suy giảm (weight decay) để kiểm soát độ phức tạp của mô hình.
 
 Quy trình cập nhật ALM thực tế:
 - Kiểm tra tính không chu trình mỗi 10 epochs.
@@ -180,13 +180,13 @@ Pha 3 giải quyết vấn đề "cạnh giả" do tối ưu hóa liên tục đ
 
 ### 3.4.1 Chọn cạnh qua Nonlinear Adaptive LASSO
 
-Như được triển khai trong `src/utils/adaptive_lasso.py`, DeepANM sử dụng **Random Forest Permutation Importance** để chấm điểm cạnh:
+DeepANM sử dụng **Random Forest Permutation Importance** để chấm điểm cạnh:
 - Một cạnh $i \to j$ chỉ được giữ lại nếu việc hoán vị giá trị của $i$ gây ra sự sụt giảm ý nghĩa trên tập kiểm tra ($> 3\%$ R-squared) và tín hiệu này phải vượt qua rào chắn nhiễu thống kê ($> 2\sigma$).
 - Kỹ thuật này mạnh hơn LASSO truyền thống vì nó không giả định quan hệ tuyến tính giữa các biến.
 
 ### 3.4.2 Màng lọc Giao thoa Causal Jacobian (ATE Gate)
 
-Pha 3 còn tính toán ma trận **Jacobian ATE** trong `src/models/deepanm.py`. Đây là giá trị đo lường sự can thiệp trực tiếp bằng đạo hàm riêng của mạng neural. Chỉ những cạnh có cả độ quan trọng thống kê (từ RF) và cường độ can thiệp thực sự (Jacobian ATE $> 0.01$) mới được ghi nhận vào DAG cuối cùng.
+Pha 3 còn tính toán ma trận **Jacobian ATE** để đo lường sự can thiệp trực tiếp bằng đạo hàm riêng của mạng neural. Chỉ những cạnh có cả độ quan trọng thống kê (từ RF) và cường độ can thiệp thực sự (Jacobian ATE $> 0.01$) mới được ghi nhận vào DAG cuối cùng.
 
 $$
 \text{ATE}_{ij} = \left| \frac{\partial \hat{X}_j}{\partial X_i} \right|
@@ -194,7 +194,7 @@ $$
 
 ### 3.4.3 Hậu kiểm Độc lập Điều kiện (Conditional Independence - CI)
 
-Lớp `adaptive_lasso.py` thực hiện một bước kiểm tra cuối cùng bằng cách sử dụng **HistGradientBoostingRegressor** để tính phần dư điều kiện. 
+Một bước kiểm tra cuối cùng được thực hiện bằng cách sử dụng các mô hình hồi quy phi tuyến để tính phần dư điều kiện. 
 Nếu $X_i \perp X_j | \{PA_j \setminus X_i\}$, tức là thông tin từ $i$ đã bị triệt tiêu hoàn toàn khi biết các cha khác của $j$, cạnh $i \to j$ sẽ bị coi là đường truyền gián tiếp (V-structure hoặc chain) và bị loại bỏ.
 
 ```mermaid
@@ -217,4 +217,4 @@ Mô hình DeepANM được thiết kế với các đặc tính vượt trội:
 
 ## 3.6 Tiểu kết chương
 
-Chương 3 đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng lõi `MLP`, `GPPOM` đến các bộ điều phối `DeepANMTrainer` và `AdaptiveLASSO`. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả mạnh mẽ, sẵn sàng cho các thử thách thực nghiệm tại Chương 4.
+Chương 3 đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả mạnh mẽ, sẵn sàng cho các thử thách thực nghiệm tại Chương 4.
