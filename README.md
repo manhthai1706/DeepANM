@@ -209,21 +209,31 @@ tests/test_core.py::test_deepanm_integration      PASSED
 
 ## Tài liệu tham khảo
 
-| Đề xuất / Thuật toán | Nguồn tài liệu | Đóng góp vào hệ thống DeepANM |
-|:---|:---|:---|
-| **ANM** (Additive Noise) | Hoyer et al. (2009) | Lý thuyết nền tảng về Mô hình Nhiễu cộng bất đối xứng |
-| **PNL** (Post-Nonlinear) | Zhang & Hyvarinen (2009) | Mô hình nhân quả hậu phi tuyến (Module Decoder) |
-| **HSIC** (Independence) | Gretton et al. (2005) | Tiêu chí độc lập Hilbert-Schmidt dùng làm loss function |
-| **RFF** (Fourier Features)| Rahimi & Recht (2007) | Tối ưu hóa HSIC từ O(N²) xuống O(N·D) |
-| **RESIT** (TopoSort) | Peters et al. (2014) | Sắp xếp thứ tự nhân quả Sink-First bằng phần dư |
-| **NOTEARS** (Continuous) | Zheng et al. (2018) | Phát kiến chuyển bài toán học DAG tổ hợp sang liên tục |
-| **DAGMA** (Acyclicity) | Bello et al. (2022) | Hàm phạt phi chu trình $h(W)$ bằng Log-determinant |
-| **DECI / Causica** | Brouillard et al. (2020) | Kỹ thuật mô hình hóa nhiễu GMM không đồng nhất |
-| **Adaptive LASSO** | Zou (2006) | Thuật toán chọn cạnh thưa thớt (Phase 3 Edge Selection) |
-| **Random Forest** | Breiman (2001) | Đánh giá độ quan trọng hoán vị (Permutation Importance) |
-| **Sachs Dataset** | Sachs et al. (2005) | Tập dữ liệu Benchmark sinh học mạng lưới Protein |
-| **Boston Housing** | Harrison & Rubinfeld (1978)| Tập dữ liệu Benchmark kinh tế học xã hội |
-| **ANM-MM** (Baseline) | amber0309 (GitHub) | Nguồn cảm hứng cho mạng VAE phân loại cơ chế |
+[1] Hoyer, P. O., Janzing, D., Mooij, J. M., Peters, J., & Schölkopf, B. (2009). Nonlinear causal discovery with additive noise models. *Advances in neural information processing systems*, 21.
+
+[2] Zhang, K., & Hyvärinen, A. (2009). On the identifiability of the post-nonlinear causal model. In *Proceedings of the twenty-fifth conference on uncertainty in artificial intelligence* (pp. 647-655).
+
+[3] Gretton, A., Bousquet, O., Smola, A., & Schölkopf, B. (2005). Measuring statistical dependence with Hilbert-Schmidt norms. In *Algorithmic Learning Theory* (pp. 63-77). Springer Berlin Heidelberg.
+
+[4] Rahimi, A., & Recht, B. (2007). Random features for large-scale kernel machines. *Advances in neural information processing systems*, 20.
+
+[5] Peters, J., Mooij, J. M., Janzing, D., & Schölkopf, B. (2014). Causal discovery with continuous additive noise models. *The Journal of Machine Learning Research*, 15(1), 2009-2053.
+
+[6] Zheng, X., Aragam, B., Ravikumar, P. K., & Xing, E. P. (2018). DAGs with NO TEARS: Continuous optimization for structure learning. *Advances in neural information processing systems*, 31.
+
+[7] Bello, K., Aragam, B., & Ravikumar, P. (2022). DAGMA: Learning DAGs via M-matrices and a log-determinant acyclicity characterization. *Advances in Neural Information Processing Systems*, 35, 8226-8239.
+
+[8] Brouillard, P., Lachapelle, S., Lacoste, A., Lacoste-Julien, S., & Drouin, A. (2020). Differentiable causal discovery from interventional data. *Advances in Neural Information Processing Systems*, 33, 21865-21877.
+
+[9] Zou, H. (2006). The adaptive lasso and its oracle properties. *Journal of the American statistical association*, 101(476), 1418-1429.
+
+[10] Breiman, L. (2001). Random forests. *Machine learning*, 45(1), 5-32.
+
+[11] Sachs, K., Perez, O., Pe'er, D., Lauffenburger, D. A., & Nolan, G. P. (2005). Causal protein-signaling networks derived from multiparameter single-cell data. *Science*, 308(5721), 523-529.
+
+[12] Harrison Jr, D., & Rubinfeld, D. L. (1978). Hedonic housing prices and the demand for clean air. *Journal of environmental economics and management*, 5(1), 81-102.
+
+[13] amber0309. (2023). *ANM-MM: Additive Noise Model with Mixture Models*. GitHub repository, Retrieved from https://github.com/amber0309/ANM-MM
 
 ---
 
