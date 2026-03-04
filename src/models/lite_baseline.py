@@ -31,21 +31,21 @@ class LiteANM(DeepANM):
         super().__init__(x_dim=x_dim, n_clusters=1, hidden_dim=16, lda=0.5, device=device)
         
     def fit(self, X, epochs=50, batch_size=128, lr=5e-3, verbose=True,
-            apply_quantile=False, apply_isolation=False, discovery_mode="alm", _precomputed_order=None):
+            apply_quantile=False, apply_isolation=False, discovery_mode="alm", _precomputed_order=None, **kwargs):
         """Override fit() with lighter defaults: 50 epochs, larger batch_size.
         Ghi đè fit() với mặc định nhẹ hơn: 50 epochs, batch_size lớn hơn."""
         return super().fit(
             X, epochs=epochs, batch_size=batch_size, lr=lr, verbose=verbose,
             apply_quantile=apply_quantile, apply_isolation=apply_isolation,
-            discovery_mode=discovery_mode, _precomputed_order=_precomputed_order
+            discovery_mode=discovery_mode, _precomputed_order=_precomputed_order, **kwargs
         )
 
     def fit_bootstrap(self, X, n_bootstraps=3, epochs=50, batch_size=128, lr=5e-3,
-                      verbose=True, apply_quantile=False, apply_isolation=False, discovery_mode="alm"):
+                      verbose=True, apply_quantile=False, apply_isolation=False, discovery_mode="alm", **kwargs):
         """Override fit_bootstrap() with fewer bootstraps and lighter epochs.
         Ghi đè fit_bootstrap() với ít bootstrap hơn và epochs nhẹ hơn."""
         return super().fit_bootstrap(
             X, n_bootstraps=n_bootstraps, epochs=epochs, batch_size=batch_size,
             lr=lr, verbose=verbose, apply_quantile=apply_quantile,
-            apply_isolation=apply_isolation, discovery_mode=discovery_mode
+            apply_isolation=apply_isolation, discovery_mode=discovery_mode, **kwargs
         )
