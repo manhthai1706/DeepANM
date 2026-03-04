@@ -133,18 +133,18 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 ```mermaid
 graph TD
     subgraph MLP_Architect ["Chi tiết Kiến trúc Mạng Neural DeepANM"]
-        In[Input X] --> En_Net[Encoder: Linear + GELU + Norm]
+        In["Input X"] --> En_Net["Encoder: Linear + GELU + Norm"]
         En_Net --> Gumbel["Gumbel-Softmax (Mechanism Z)"]
         
-        In --> Mask[W-Logits Mask]
-        Mask --> SEM_Res[SEM: Residual MLP Blocks]
-        SEM_Res --> mu[Dự đoán mu_j]
+        In --> Mask["W-Logits Mask"]
+        Mask --> SEM_Res["SEM: Residual MLP Blocks"]
+        SEM_Res --> mu["Dự đoán mu_j"]
         
-        mu --> Decoder[Monotonic Decoder: Softplus weight]
-        Gumbel -->|Z| Final[Tái cấu trúc & GMM Likelihood]
+        mu --> Decoder["Monotonic Decoder: Softplus weight"]
+        Gumbel -->|Z| Final["Tái cấu trúc & GMM Likelihood"]
         Decoder --> Final
         
-        Final --> Loss[Total Loss: MSE + NLL + h(W)]
+        Final --> Loss["Total Loss: MSE + NLL + h(W)"]
     end
 ```
 <p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
