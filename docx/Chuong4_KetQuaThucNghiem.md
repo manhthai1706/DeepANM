@@ -129,8 +129,6 @@ graph TD
     
     Improve["Cải thiện hiệu năng"]
     L1 -.->|"-59%"| L4
-    
-    style L4 fill:#f9f,stroke:#333,stroke-width:4px
 ```
 <p align="center"><b>Hình 4.2: Biểu đồ xu hướng sụt giảm SHD qua các cấp độ tích hợp thành phần</b></p>
 
@@ -152,8 +150,6 @@ graph TD
     RM["RM<br/>(Số phòng)"] -- "+ 0.06" --> MEDV["MEDV<br/>(Giá nhà)"]
     MEDV["MEDV<br/>(Giá nhà)"] -- "- 0.07" --> LSTAT["LSTAT<br/>(% Dân nghèo)"]
     NOX["NOX<br/>(Ô nhiễm)"] -- "- 0.04" --> DIS["K/c trung tâm"]
-    
-    style MEDV fill:#bbf,stroke:#333,stroke-width:2px
 ```
 <p align="center"><b>Hình 4.3: Các nhân tố can thiệp chính trong dữ liệu Boston Housing</b></p>
 
