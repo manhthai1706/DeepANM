@@ -167,5 +167,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 <div align="center">
-Developed by Manh Thai | 2025
+ Manh Thai | 2026
 </div>
