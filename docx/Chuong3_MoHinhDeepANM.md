@@ -220,4 +220,4 @@ Mô hình DeepANM được thiết kế với các đặc tính :
 
 ## 3.6 Tiểu kết chương
 
-Chương 3 đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả hiệu quả, sẵn sàng cho các thử thách thực nghiệm tại Chương 4.
+Nội dung này đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả hiệu quả, sẵn sàng cho các thử thách thực nghiệm thực tế.

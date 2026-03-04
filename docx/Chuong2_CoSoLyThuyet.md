@@ -178,4 +178,4 @@ Bằng việc mô hình hóa các biến số phi tuyến bằng Histogram-based
 
 ## 2.6 Tiểu kết
 
-Chương 2 đã hệ thống hóa các cơ sở toán học cấu thành quá trình khám phá nhân quả. Trọng tâm bao gồm Đồ thị DAG, mô hình SEM, nguyên lý bất đối xứng của Nhiễu cộng (ANM) và tối ưu hóa liên tục bằng DAGMA. Các kỹ thuật tiên tiến như xấp xỉ Fourier (RFF) nhằm giải quyết nút thắt tính toán của HSIC, cùng phương pháp chọn cạnh Adaptive LASSO cũng được trình bày chi tiết. Đây là nền tảng lý thuyết tiên quyết để xây dựng và giải thích kiến trúc thực hành của hệ thống DeepANM trong Chương 3.
+Phần này đã hệ thống hóa các cơ sở toán học cấu thành quá trình khám phá nhân quả. Trọng tâm bao gồm Đồ thị DAG, mô hình SEM, nguyên lý bất đối xứng của Nhiễu cộng (ANM) và tối ưu hóa liên tục bằng DAGMA. Các kỹ thuật tiên tiến như xấp xỉ Fourier (RFF) nhằm giải quyết nút thắt tính toán của HSIC, cùng phương pháp chọn cạnh Adaptive LASSO cũng được trình bày chi tiết. Đây là nền tảng lý thuyết tiên quyết để xây dựng và giải thích kiến trúc thực hành của hệ thống DeepANM trong phần tiếp theo.
