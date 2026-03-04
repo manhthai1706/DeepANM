@@ -43,6 +43,8 @@ graph TD
     class Sink,ALM,CI highlight;
     class Encoder,SEM,Decoder core;
 ```
+<p align="center"><b>Hình 3.1: Kiến trúc luồng hệ thống 3 pha của DeepANM</b></p>
+
 
 **Tổng quan dòng đời vận hành của 3 pha:**
 - **Pha 1 (TopoSort - Sắp xếp Topological):** Đóng vai trò là "Nhà chiến lược". Không vội vàng nhồi trọng số vào học máy sâu, pha này dùng phân tích thống kê toán học (HSIC) để tìm ra một chuỗi (Order) các biến được sắp xếp từ Tổ tiên (Nguyên nhân Gốc) $\to$ ... $\to$ Đóng vai trò con cháu (Sink Nodes). Kết quả định hình một biên giới để chặn đường Mạng Neural không vi phạm nguyên tắc xoay vòng sau này.
@@ -102,6 +104,8 @@ graph TD
     Decoder --> Output[Hàm Loss Đa mục tiêu]
     Output -->|Backprop| Mask
 ```
+<p align="center"><b>Hình 3.2: Sơ đồ logic khối lõi GPPOMC (Pha 2)</b></p>
+
 
 ### 3.3.1 Kiến trúc các Khối Mạng (Module Architecture)
 
@@ -163,6 +167,8 @@ sequenceDiagram
     Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
     ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
+<p align="center"><b>Hình 3.3: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
+
 
 Kỹ thuật ALM đẩy hệ số cấm chập mạch to lên theo thời gian. Giai đoạn đầu, mô hình được tự do khám phá các mối quan hệ. Nhưng dần về sau, khi hình phạt xấp xỉ vô cực, hệ thống mạng nơ-ron buộc phải tự cắt bỏ những mắt xích yếu nhất để triệt tiêu các vòng lặp, chỉ giữ lại những đường dây nhân quả cốt lõi nhất.
 
@@ -185,6 +191,8 @@ graph TD
     Logic --> CI[Cổng 3: Test Độc lập Điều kiện CI]
     CI --> Final[DAG Cuối cùng]
 ```
+<p align="center"><b>Hình 3.4: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
+
 
 ### 3.4.1 Màng Lọc Cơ Sở Jacobian (Neural ATE Score)
 
