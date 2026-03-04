@@ -93,7 +93,7 @@ DeepANM đưa ra cơ chế mô hình hóa Phương trình Cấu trúc (Structura
 Để giải quyết, tôi thiết kế và tích hợp lõi GPPOMC kết cấu thành một vòng lặp logic khép kín:
 
 ```mermaid
-graph LR
+graph TD
     Input[Dữ liệu X] --> Encoder[Encoder: Phân cụm Cơ chế]
     Input --> Mask[Ma trận Trọng số W]
     Mask --> SEM[SEM: Học Phương trình Nhân quả]
