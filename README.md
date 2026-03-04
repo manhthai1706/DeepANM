@@ -243,6 +243,10 @@ tests/test_core.py::test_deepanm_integration      PASSED
 
 [17] Liu, F. T., Ting, K. M., & Zhou, Z. H. (2008). Isolation forest. In *2008 eighth ieee international conference on data mining* (pp. 413-422). IEEE.
 
+[18] Bertsekas, D. P. (1982). *Constrained optimization and Lagrange multiplier methods*. Academic press.
+
+[19] Bolstad, B. M., Irizarry, R. A., Astrand, M., & Speed, T. P. (2003). A comparison of normalization methods for high density oligonucleotide array data based on variance and bias. *Bioinformatics*, 19(2), 185-193.
+
 ---
 
 ## Giấy phép
