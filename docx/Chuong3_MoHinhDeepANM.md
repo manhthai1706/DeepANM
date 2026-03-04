@@ -13,32 +13,32 @@ graph TD
     classDef highlight fill:#000,color:#fff,stroke:#333,stroke-width:2px;
     classDef sub core fill:#bbf,stroke:#333,stroke-width:2px;
     
-    Data[(Dữ liệu quan sát đa biến X)] --> Preprocess(Tiền xử lý & Loại bỏ nhiễu cực trị)
+    Data["Dữ liệu quan sát<br/>đa biến X"] --> Preprocess("Tiền xử lý &<br/>Loại bỏ nhiễu")
     
     subgraph phase1 ["Pha 1: TopoSort"]
-        Preprocess --> RFF[Phép chiếu RFF]
-        RFF --> Sink[HSIC Sink-First]
+        Preprocess --> RFF["Phép chiếu<br/>RFF"]
+        RFF --> Sink["HSIC<br/>Sink-First"]
     end
     
     subgraph phase2 ["Pha 2: Học SCM"]
-        Sink -->|Thứ tự| Encoder["VAE + Gumbel"]
-        Sink -->|Biến| SEM[Neural SCM]
-        Encoder -->|Phân cụm| Combine((Ensemble))
-        SEM -->|Dự đoán| Combine
-        Combine --> Decoder[Monotonic Decoder]
-        Decoder --> ALM[ALM Optimizer]
+        Sink -->|"Thứ tự"| Encoder["VAE +<br/>Gumbel"]
+        Sink -->|"Biến"| SEM["Neural<br/>SCM"]
+        Encoder -->|"Phân cụm"| Combine((Ensemble))
+        SEM -->|"Dự đoán"| Combine
+        Combine --> Decoder["Monotonic<br/>Decoder"]
+        Decoder --> ALM["ALM<br/>Optimizer"]
     end
     
     subgraph phase3 ["Pha 3: Cắt tỉa"]
-        ALM -->|Trọng số| DoubleGate(Double-Gate)
-        DoubleGate --> RF[RF Importance]
-        DoubleGate --> ATE[Jacobian ATE]
-        RF --> ALasso[Adaptive LASSO]
+        ALM -->|"Trọng số"| DoubleGate("Double-Gate<br/>Filter")
+        DoubleGate --> RF["RF<br/>Importance"]
+        DoubleGate --> ATE["Jacobian<br/>ATE"]
+        RF --> ALasso["Adaptive<br/>LASSO"]
         ATE --> ALasso
-        ALasso --> CI[Test CI]
+        ALasso --> CI["Test CI"]
     end
     
-    CI --> Final[DAG Cuối cùng]
+    CI --> Final["DAG Cuối cùng"]
     
     class Sink,ALM,CI highlight;
     class Encoder,SEM,Decoder core;
@@ -96,12 +96,12 @@ DeepANM đưa ra cơ chế mô hình hóa Phương trình Cấu trúc (Structura
 
 ```mermaid
 graph TD
-    Input[Dữ liệu X] --> Encoder[Encoder: Phân cụm Cơ chế]
-    Input --> Mask[Ma trận Trọng số W]
-    Mask --> SEM[SEM: Học Phương trình Nhân quả]
+    Input["Dữ liệu X"] --> Encoder["Encoder:<br/>Phân cụm Cơ chế"]
+    Input --> Mask["Ma trận<br/>Trọng số W"]
+    Mask --> SEM["SEM:<br/>Học PT Nhân quả"]
     Encoder -->|Z| SEM
-    SEM -->|Dự đoán| Decoder[Decoder: Tái cấu trúc & Tính Nhiễu]
-    Decoder --> Output[Hàm Loss Đa mục tiêu]
+    SEM -->|"Dự đoán"| Decoder["Decoder:<br/>Tái cấu trúc"]
+    Decoder --> Output["Hàm Loss<br/>Đa mục tiêu"]
     Output -->|Backprop| Mask
 ```
 <p align="center"><b>Hình 3.2: Sơ đồ logic khối lõi GPPOMC (Pha 2)</b></p>
@@ -132,19 +132,19 @@ Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tenso
 
 ```mermaid
 graph TD
-    subgraph MLP_Architect ["Chi tiết Kiến trúc Mạng Neural DeepANM"]
-        In["Input X"] --> En_Net["Encoder: Linear + GELU + Norm"]
-        En_Net --> Gumbel["Gumbel-Softmax (Mechanism Z)"]
+    subgraph MLP_Architect ["Kiến trúc Mạng Neural DeepANM"]
+        In["Input X"] --> En_Net["Encoder:<br/>Linear+GELU+Norm"]
+        En_Net --> Gumbel["Gumbel-Softmax<br/>(Mechanism Z)"]
         
         In --> Mask["W-Logits Mask"]
-        Mask --> SEM_Res["SEM: Residual MLP Blocks"]
+        Mask --> SEM_Res["SEM: Residual<br/>MLP Blocks"]
         SEM_Res --> mu["Dự đoán mu_j"]
         
-        mu --> Decoder["Monotonic Decoder: Softplus weight"]
-        Gumbel -->|Z| Final["Tái cấu trúc & GMM Likelihood"]
+        mu --> Decoder["Monotonic Decoder:<br/>Softplus weight"]
+        Gumbel -->|Z| Final["Tái cấu trúc &<br/>GMM Likelihood"]
         Decoder --> Final
         
-        Final --> Loss["Total Loss: MSE + NLL + h(W)"]
+        Final --> Loss["Total Loss:<br/>MSE+NLL+h(W)"]
     end
 ```
 <p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
@@ -203,12 +203,12 @@ Dự án DeepANM triển khai bộ thiết kế lọc 2 cổng (Double-Gate) c�
 
 ```mermaid
 graph TD
-    Raw[Đồ thị thô Phase 2] --> Gate1[Cổng 1: Neural Jacobian ATE]
-    Raw --> Gate2[Cổng 2: Random Forest Importance]
+    Raw["Đồ thị thô<br/>Phase 2"] --> Gate1["Cổng 1:<br/>Neural Jacobian ATE"]
+    Raw --> Gate2["Cổng 2:<br/>RF Importance"]
     Gate1 --> Logic{Kết hợp & Lọc}
     Gate2 --> Logic
-    Logic --> CI[Cổng 3: Test Độc lập Điều kiện CI]
-    CI --> Final[DAG Cuối cùng]
+    Logic --> CI["Cổng 3:<br/>Test Độc lập CI"]
+    CI --> Final["DAG Cuối cùng"]
 ```
 <p align="center"><b>Hình 3.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
 
