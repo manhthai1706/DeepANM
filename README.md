@@ -235,6 +235,14 @@ tests/test_core.py::test_deepanm_integration      PASSED
 
 [13] amber0309. (2023). *GPPOM: Gaussian Process partially observable model for causal discovery*. GitHub repository, Retrieved from https://github.com/amber0309/GPPOM
 
+[14] Jang, E., Gu, S., & Poole, B. (2016). Categorical reparameterization with gumbel-softmax. *arXiv preprint arXiv:1611.01144*.
+
+[15] Pearl, J. (2009). *Causality*. Cambridge university press.
+
+[16] Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., ... & Liu, T. Y. (2017). Lightgbm: A highly efficient gradient boosting decision tree. *Advances in neural information processing systems*, 30.
+
+[17] Liu, F. T., Ting, K. M., & Zhou, Z. H. (2008). Isolation forest. In *2008 eighth ieee international conference on data mining* (pp. 413-422). IEEE.
+
 ---
 
 ## Giấy phép
