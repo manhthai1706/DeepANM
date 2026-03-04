@@ -15,30 +15,30 @@ graph TD
     
     Data[(Dữ liệu quan sát đa biến X)] --> Preprocess(Tiền xử lý & Loại bỏ nhiễu cực trị)
     
-    subgraph phase1 ["Phase 1: Tiền định hướng (TopoSort)"]
-        Preprocess --> RFF[Phép chiếu Không gian ngẫu nhiên Fourier - RFF]
-        RFF --> Sink[HSIC Greedy Sink-First Ordering]
+    subgraph phase1 ["Pha 1: Định hướng TopoSort"]
+        Preprocess --> RFF[Phép chiếu RFF]
+        RFF --> Sink[HSIC Sink-First Ordering]
     end
     
-    subgraph phase2 ["Phase 2: Khớp Động cơ Sinh thái (Neural SCM Fitter)"]
-        Sink -->|Thứ tự Ưu tiên C| Encoder[Mạng VAE Encoder + Gumbel Softmax]
-        Sink -->|Đội hình biến| SEM[Mạng Neural Phương trình Nhân quả Cốt lõi]
-        Encoder -->|Phân cụm Cơ chế Z| Combine((Trộn Ensemble))
-        SEM -->|Dự đoán Trạng thái| Combine
-        Combine --> Decoder[Mạng Monotonic Decoder & GMM NLL]
-        Decoder --> ALM[Tối ưu hóa Hệ số Vong lặp DAGMA ALM]
+    subgraph phase2 ["Pha 2: Khớp Động cơ Neural SCM"]
+        Sink -->|Thứ tự C| Encoder[VAE + Gumbel Softmax]
+        Sink -->|Đội hình| SEM[Mạng Neural SCM]
+        Encoder -->|Phân cụm Z| Combine((Trộn Ensemble))
+        SEM -->|Dự đoán| Combine
+        Combine --> Decoder[Monotonic Decoder]
+        Decoder --> ALM[Tối ưu DAGMA ALM]
     end
     
-    subgraph phase3 ["Phase 3: Công cụ Cắt tỉa tinh chỉnh (Adaptive Post-Pruning)"]
-        ALM -->|Ma trận Trọng số thô W_raw| DoubleGate(Double-Gate Filter)
-        DoubleGate --> RF[Random Forest Permutation Importance]
-        DoubleGate --> ATE[Neural ATE Jacobian Estimator]
-        RF --> ALasso[Adaptive LASSO Penalties]
+    subgraph phase3 ["Pha 3: Cắt tỉa & Tinh chỉnh"]
+        ALM -->|Trọng số W| DoubleGate(Double-Gate Filter)
+        DoubleGate --> RF[Random Forest Importance]
+        DoubleGate --> ATE[Jacobian ATE Estimator]
+        RF --> ALasso[Adaptive LASSO]
         ATE --> ALasso
-        ALasso --> CI[Partial Residual Correlation Test]
+        ALasso --> CI[Test Độc lập CI]
     end
     
-    CI --> Final[DAG Cấu trúc Cuối cùng]
+    CI --> Final[DAG Cuối cùng]
     
     class Sink,ALM,CI highlight;
     class Encoder,SEM,Decoder core;
