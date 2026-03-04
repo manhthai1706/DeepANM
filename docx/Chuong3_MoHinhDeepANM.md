@@ -96,15 +96,28 @@ DeepANM đưa ra cơ chế mô hình hóa Phương trình Cấu trúc (Structura
 
 ```mermaid
 graph TD
-    Input["Dữ liệu X"] --> Encoder["Encoder:<br/>Phân cụm Cơ chế"]
-    Input --> Mask["Ma trận<br/>Trọng số W"]
-    Mask --> SEM["SEM:<br/>Học PT Nhân quả"]
-    Encoder -->|Z| SEM
-    SEM -->|"Dự đoán"| Decoder["Decoder:<br/>Tái cấu trúc"]
-    Decoder --> Output["Hàm Loss<br/>Đa mục tiêu"]
-    Output -->|Backprop| Mask
+    In["Dữ liệu X"] --> Mask["Cổng Gumbel<br/>& Mặt nạ Topo"]
+    In --> Encoder["Encoder VAE<br/>(Cluster Z)"]
+    
+    Mask -->|"Ma trận W"| Dot["Nhân ma trận<br/>(X @ W)"]
+    Dot --> SEM["Mạng Neural<br/>SEM (MLP)"]
+    
+    Dot --> RFF["Lớp RFF-GP<br/>(Kernel Mapping)"]
+    RFF --> GP_Head["Hồi quy GP<br/>(Non-linear)"]
+    
+    SEM --> Sum["Tổng hợp Dự đoán<br/>(MLP + GP)"]
+    GP_Head --> Sum
+    Encoder -->|z_soft| Sum
+    
+    Sum --> Res["Tính toán Phần dư<br/>(Residuals)"]
+    Sum --> Loss["Loss: MSE + NLL<br/>+ DAGMA"]
+    
+    Res --> HSIC["Kiểm định HSIC<br/>(Độc lập Nhiễu)"]
+    HSIC --> Loss
+    
+    Loss -->|"Backprop"| Mask
 ```
-<p align="center"><b>Hình 3.2: Sơ đồ logic khối lõi GPPOMC (Pha 2)</b></p>
+<p align="center"><b>Hình 3.2: Sơ đồ kiến trúc kỹ thuật chi tiết của khối GPPOM-HSIC</b></p>
 
 
 ### 3.3.1 Kiến trúc các Khối Mạng (Module Architecture)
