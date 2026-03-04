@@ -1,10 +1,10 @@
-# Kịch bản Kiểm thử DeepANM (Test Scenarios)
+# Kịch bản Kiểm thử DeepANM 
 
 Tập tin này mô tả toàn bộ kịch bản kiểm thử (unit tests) được định nghĩa trong `tests/test_core.py`. Các bài test được sử dụng để đảm bảo tính chính xác về mặt kiến trúc, kỹ thuật học sâu và toán học của toàn bộ framework khám phá nhân quả DeepANM.
 
 ## Danh sách Bài Test
 
-| Tên Bài Test | Module | Mục tiêu & Cách thức Test (How & What) |
+| Tên Bài Test | Module | Mục tiêu & Cách thức Test |
 |:---|:---|:---|
 | `test_mlp_components` | `src.core.mlp` | **Kiểm tra luồng Tensor của mạng MLP:** Đảm bảo Encoder sinh ra phân phối rời rạc (Gumbel), SEM tính ra dự đoán trung bình (mu), Decoder tính ra luồng biến đổi, và GMM tính toán log_prob hợp lệ không NaNs. Kích thước batch và số chiều (d) phải khớp tuyệt đối. |
 | `test_heterogeneous_noise`| `src.core.mlp` | **Kiểm tra GMM Nhiễu (DECI):** Đưa nhiễu ngẫu nhiên vào mô hình GMM, kiểm tra đầu ra log-likelihood có trả về đúng 1 scalar cho mỗi sample (shape `[batch_size]`) và không bị nổ gradient (NaN/Inf). |
