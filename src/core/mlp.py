@@ -1,7 +1,9 @@
 """
-Deep Causal Network - Encoders, SEMs, and Normalizing Flows
-Optimized for Causal Discovery (ANM, PNL, Heterogeneous Mechanisms)
-Kiến trúc mô hình tối ưu cho Phát hiện Nhân quả phi tuyến
+DeepANM Neural Components: Encoder, SEM, Noise Model, Decoder, and MLP.
+Implements a unified causal network for nonlinear structure learning (ANM/PNL).
+
+Các thành phần Neural của DeepANM: Encoder, SEM, Mô hình Nhiễu, Decoder và MLP.
+Xây dựng mạng nhân quả thống nhất cho học cấu trúc phi tuyến (ANM/PNL).
 """
 
 import numpy as np
@@ -11,8 +13,11 @@ import torch.nn.functional as F
 
 class Encoder(nn.Module):
     """
-    Encoder: Ánh xạ không gian đầu vào X thành biểu diễn ẩn và chỉ định cơ chế (Mechanisms).
-    Dùng để xử lý dữ liệu hỗn hợp (heterogeneous data) có thể sinh ra từ nhiều cơ chế nhân quả khác nhau.
+    Maps input X to a latent cluster assignment using Gumbel-Softmax.
+    Identifies which causal mechanism generated each sample.
+
+    Ánh xạ đầu vào X thành phân cụm cơ chế ẩn dùng Gumbel-Softmax.
+    Xác định cơ chế nhân quả nào đã sinh ra từng mẫu dữ liệu.
     """
     def __init__(self, input_dim, hidden_dim, n_mechanisms=2, dropout=0.1):
         super().__init__()
@@ -25,20 +30,21 @@ class Encoder(nn.Module):
             nn.LayerNorm(hidden_dim),
             nn.GELU()
         )
-        # Sinh ra tham số phân phối ẩn (Cụm cơ chế)
+        # Logits for mechanism assignment / Logit cho phân loại cơ chế
         self.z_logits = nn.Linear(hidden_dim, n_mechanisms)
         
     def forward(self, x, temperature=1.0):
         feat = self.net(x)
         logits = self.z_logits(feat)
         
-        # Xác suất phân loại cơ chế
+        # Soft mechanism probabilities / Xác suất cơ chế mềm
         q_y = F.softmax(logits, dim=-1)
-        # Tính toán KL Divergence từ Prior Uniform (1/K) -> Tránh Error VAE
+        # KL divergence from uniform prior / KL phân kỳ từ prior đều
         log_q_y = torch.log(q_y + 1e-10)
         kl_loss = torch.sum(q_y * (log_q_y - np.log(1.0 / q_y.shape[-1])), dim=-1)
         
-        # Sử dụng Gumbel-Softmax để lấy mẫu cơ chế tự động và có thể vi phân
+        # Gumbel-Softmax: differentiable discrete sampling
+        # Gumbel-Softmax: lấy mẫu rời rạc có thể vi phân
         if self.training:
             z_soft = F.gumbel_softmax(logits, tau=temperature, hard=False)
         else:
@@ -48,8 +54,11 @@ class Encoder(nn.Module):
 
 class ANM_SEM(nn.Module):
     """
-    Structural Equation Model (SEM): Mô hình hóa phương trình nhân quả f(X).
-    Phiên bản siêu nhẹ (Lightweight Residual) dành cho học nhanh.
+    Structural Equation Model (SEM): learns the nonlinear causal function f(X).
+    Residual MLP architecture for stable training and expressive power.
+
+    Mô hình Phương trình Cấu trúc (SEM): học hàm nhân quả phi tuyến f(X).
+    Kiến trúc MLP thặng dư để huấn luyện ổn định và biểu đạt mạnh.
     """
     def __init__(self, input_dim, hidden_dim, output_dim, n_layers=2, dropout=0.05):
         super().__init__()
@@ -69,57 +78,58 @@ class ANM_SEM(nn.Module):
     def forward(self, x):
         h = self.input_proj(x)
         for block in self.blocks:
-            h = F.gelu(h + block(h)) # Residual connection
-        y_pred = self.output_proj(h)
-        return y_pred
+            h = F.gelu(h + block(h))  # Residual connection / Kết nối thặng dư
+        return self.output_proj(h)
 
 class HeterogeneousNoiseModel(nn.Module):
     """
-    Mô hình Nhiễu Dị Thể (DECI-inspired Non-Gaussian Noise).
-    Sử dụng Gaussian Mixture Model (GMM) linh hoạt theo dòng Causal Flows để 
-    khớp chính xác các loại nhiễu lệch, đa đỉnh cực đoan (Long-tail, Bimodal).
-    Phá vỡ hoàn toàn hạn chế của phân phối chuẩn Gaussian truyền thống, 
-    cung cấp Likelihood cực chuẩn cho Variational Inference ghép nối DAG.
+    Gaussian Mixture Model (GMM) noise model (DECI-inspired).
+    Fits non-Gaussian, heavy-tailed, or multimodal noise distributions.
+    Provides a robust log-likelihood target for variational inference.
+
+    Mô hình nhiễu hỗn hợp Gaussian (GMM), lấy cảm hứng từ DECI.
+    Khớp các phân phối nhiễu phi Gaussian, đuôi nặng hoặc đa đỉnh.
+    Cung cấp log-likelihood mục tiêu bền vững cho suy diễn biến phân.
     """
     def __init__(self, dim, n_components=5):
         super().__init__()
         self.dim = dim
         self.n_components = n_components
         
-        # GMM Parameters: Phân phối trọng lượng hỗn hợp (Logits), Trọng tâm (Means) và Biên độ uốn (Log-Vars)
+        # GMM parameters: mixture weights, means, log-variances
+        # Tham số GMM: trọng số hỗn hợp, trung bình, log-phương sai
         self.logits = nn.Parameter(torch.zeros(dim, n_components))
         self.means = nn.Parameter(torch.randn(dim, n_components) * 0.05)
         self.log_vars = nn.Parameter(torch.zeros(dim, n_components) - 1.0)
 
     def compute_log_prob(self, noise):
-        # noise shape: (batch, dim) => mở rộng để Vector hóa GMM: (batch, dim, 1)
-        noise_expanded = noise.unsqueeze(-1) 
+        # noise: (batch, dim) → expand for vectorized GMM: (batch, dim, 1)
+        # noise: (batch, dim) → mở rộng để vector hóa GMM: (batch, dim, 1)
+        noise_expanded = noise.unsqueeze(-1)
         
-        # Softmax để lấy Normalization Weights của từng Cụm nhiễu
-        weights = F.softmax(self.logits, dim=-1) # (dim, n_components)
+        weights = F.softmax(self.logits, dim=-1)  # (dim, n_components)
         vars = torch.exp(self.log_vars) + 1e-6
         
-        # Log-Likelihood của nội tại chuẩn bị trộn (log N(x))
+        # Log-likelihood of each Gaussian component / Log-likelihood từng thành phần Gaussian
         log_probs_components = -0.5 * (np.log(2 * np.pi) + self.log_vars + ((noise_expanded - self.means) ** 2) / vars)
         log_weights = torch.log(weights + 1e-10)
         
-        # Ghép nối trọng số
-        weighted_log_probs = log_weights + log_probs_components
-        
-        # Log-Sum-Exp Trick: Kỹ thuật Flow chống nổ Gradient (Gradient Explosion) của Pytorch
-        log_prob = torch.logsumexp(weighted_log_probs, dim=-1) # (batch, dim)
-        
-        # Trả về Tổng Độ Tiết Lộ Nhiễu (NLL Target)
-        return log_prob.sum(dim=-1) # (batch,)
+        # Log-sum-exp trick for numerical stability / Thủ thuật log-sum-exp để ổn định số học
+        log_prob = torch.logsumexp(log_weights + log_probs_components, dim=-1)  # (batch, dim)
+        return log_prob.sum(dim=-1)  # (batch,)
 
 class Decoder(nn.Module):
     """
-    Decoder cho phép đảo ngược trạng thái: Cực kì hữu ích cho mô hình PNL (Post-Nonlinear).
-    Ánh xạ dạng Y = g(f(X) + N). Trong đó Decoder tương đương với hàm g(.) đơn điệu.
+    Post-Nonlinear (PNL) transformation: g(.) in Y = g(f(X) + N).
+    Monotone affine transform (via Softplus) to ensure invertibility.
+
+    Biến đổi hậu phi tuyến (PNL): g(.) trong Y = g(f(X) + N).
+    Biến đổi affine đơn điệu (qua Softplus) để đảm bảo khả nghịch.
     """
     def __init__(self, output_dim):
         super().__init__()
-        # Trọng số qua Softplus bảo đảm đạo hàm luôn dương tính -> tính đơn điệu (Monotonicity)
+        # Softplus ensures weight > 0, guaranteeing monotonicity
+        # Softplus đảm bảo weight > 0, bảo đảm tính đơn điệu
         self.weight = nn.Parameter(torch.ones(output_dim))
         self.bias = nn.Parameter(torch.zeros(output_dim))
         
@@ -127,60 +137,62 @@ class Decoder(nn.Module):
         return F.softplus(self.weight) * x + self.bias
         
     def inverse(self, y_trans):
-        """Khả nghịch lại g^-1(.) cho việc tính nhiễu N = g^-1(Y) - f(X)"""
+        """Inverse g⁻¹(.) to recover noise N = g⁻¹(Y) - f(X).
+        Hàm nghịch g⁻¹(.) để khôi phục nhiễu N = g⁻¹(Y) - f(X)."""
         return (y_trans - self.bias) / (F.softplus(self.weight) + 1e-6)
 
 class MLP(nn.Module):
     """
-    Mạng Causal MLP hợp nhất toàn bộ vòng đời: Encoder -> SEM -> Decoder + Flow/Gaussian Noise.
-    Tối ưu hóa để phát hiện nhân quả song biến (X -> Y hoặc mạng đa biến).
-    * Giữ lại module tên MLP để tương thích với các script gọi vào của bạn.
+    Unified Causal Neural Network integrating Encoder, SEM, PNL Decoder, and GMM Noise.
+    Handles multi-variable causal structure learning and Direct Effect estimation (ATE).
+
+    Mạng Neural Nhân quả thống nhất: tích hợp Encoder, SEM, Decoder PNL và Nhiễu GMM.
+    Xử lý học cấu trúc nhân quả đa biến và ước tính tác động nhân quả trực tiếp (ATE).
     """
     def __init__(self, input_dim, hidden_dim, output_dim=1, n_clusters=2, device='cpu'):
         super().__init__()
         self.device = device
         self.n_clusters = n_clusters
         
-        # 1. Tách đặc trưng và cụm cơ chế (Gumbel Mechanism Selection)
+        # 1. Mechanism classifier / Bộ phân loại cơ chế
         self.encoder = Encoder(input_dim, hidden_dim, n_clusters)
         
-        # 2. Xấp xỉ phương trình cấu trúc f(X) qua Additive Noise Model (ANM-SEM)
+        # 2. Structural Equation Model f(X) / Mô hình phương trình cấu trúc f(X)
         self.sem = ANM_SEM(input_dim, hidden_dim, output_dim)
         
-        # 3. Mô hình hóa phân phối nhiễu phức hợp qua mạng GMM lai DECI
+        # 3. GMM noise distribution / Phân phối nhiễu GMM
         self.noise_model = HeterogeneousNoiseModel(output_dim, n_components=5)
             
-        # 4. Post-Nonlinear Decoder
+        # 4. Post-Nonlinear decoder g(.) / Decoder hậu phi tuyến g(.)
         self.pnl_transform = Decoder(output_dim)
         
         self.to(device)
 
     def forward(self, x, y=None, temperature=1.0):
-        """Lan truyền tiến tính toán phương trình nhân quả"""
+        """Forward pass computing structural causal equations.
+        Lan truyền tiến tính toán phương trình nhân quả cấu trúc."""
         if isinstance(x, np.ndarray): x = torch.from_numpy(x).float().to(self.device)
         if y is not None and isinstance(y, np.ndarray): y = torch.from_numpy(y).float().to(self.device)
         
-        # 1. Phân loại cơ chế sinh học
+        # 1. Classify mechanism / Phân loại cơ chế
         feat, z_soft, kl_loss = self.encoder(x, temperature)
         
-        # 2. Suy diễn f(X)
+        # 2. Predict f(X) / Dự đoán f(X)
         mu = self.sem(x)
         
-        # 3. Self-supervised noise proxy: N = g(X) - f(X)
-        # Luôn tính log_prob_noise (không cần y ground truth):
-        # g(X) ≈ x qua PNL transform, nhiễu = sai lệch giữa observation và prediction
+        # 3. Self-supervised noise proxy: N̂ = g(X) - f(X)
+        # Ước tính nhiễu tự giám sát: N̂ = g(X) - f(X)
         noise_proxy = self.pnl_transform(x) - mu
 
         results = {
             "z_soft": z_soft,
             "kl_loss": kl_loss,
             "mu": mu,
-            # GMM log-likelihood của nhiễu ước tính (luôn active)
             "log_prob_noise": self.noise_model.compute_log_prob(noise_proxy),
         }
         
         if y is not None:
-            # Nếu có ground truth y, tính nhiễu chính xác hơn
+            # If ground truth y available, use exact noise / Nếu có y thực, dùng nhiễu chính xác
             exact_noise = y - mu
             results["log_prob_noise"] = self.noise_model.compute_log_prob(exact_noise)
 
@@ -188,46 +200,31 @@ class MLP(nn.Module):
 
     def estimate_ate(self, X_control, X_treatment):
         """
-        Tính toán Average Treatment Effect (ATE)
-        ATE = E[ Y | do(X_treatment) ] - E[ Y | do(X_control) ]
-        Rất ý nghĩa khi muốn đo kích thước tác động nhân quả, bên cạnh việc chỉ tìm hướng.
+        Binary ATE: E[Y | do(X_treatment)] - E[Y | do(X_control)].
+        Measures the causal effect magnitude from a do-intervention.
+
+        ATE nhị phân: đo cường độ tác động nhân quả từ can thiệp do(.).
         """
-        self.eval() # Chuyển sang chế độ đánh giá
+        self.eval()
         with torch.no_grad():
             if isinstance(X_control, np.ndarray): 
                 X_control = torch.from_numpy(X_control).float().to(self.device)
             if isinstance(X_treatment, np.ndarray): 
                 X_treatment = torch.from_numpy(X_treatment).float().to(self.device)
             
-            # Suy diễn giá trị Y qua cấu trúc Structural Equation f(X)
-            y_control = self.sem(X_control)
-            y_treatment = self.sem(X_treatment)
-            
-            # Decode nếu mô hình đang hoạt động ở chế độ PNL
-            y_control_decoded = self.pnl_transform.inverse(y_control)
-            y_treatment_decoded = self.pnl_transform.inverse(y_treatment)
-            
-            # Tính Individual Treatment Effect (ITE) và lấy giá trị trung bình ATE
-            ite = y_treatment_decoded - y_control_decoded
-            ate = torch.mean(ite).item()
+            y_control = self.pnl_transform.inverse(self.sem(X_control))
+            y_treatment = self.pnl_transform.inverse(self.sem(X_treatment))
+            ate = torch.mean(y_treatment - y_control).item()
             
         return ate
 
     def get_global_ate_matrix(self, X, W_dag=None, eps=1e-3):
         """
-        Compute Direct Causal Effect matrix for edge selection.
+        Compute the Direct Causal Effect (ATE) matrix via batched neural Jacobian.
+        For each edge i→j: ATE[i,j] = sensitivity_j × W_dag[i,j].
 
-        Strategy (batched, O(1) forward passes):
-            1. base_input = X @ W_dag  (what each variable's SEM input looks like)
-            2. For each target variable j, perturb base_input[:, j] += eps
-            3. sensitivity[j] = mean( SEM(perturbed)_j - SEM(base)_j ) / eps
-               = how sensitive is output j to a unit change in its own input
-            4. ATE[i, j] = sensitivity[j] * W_dag[i, j]
-               = direct contribution of parent i to child j
-
-        This fixes the old approach where intervention on X_raw leaked eps
-        through ALL W_dag columns simultaneously, conflating direct and
-        indirect effects.
+        Tính ma trận Tác động Nhân quả Trực tiếp (ATE) qua Jacobian Neural theo lô.
+        Với mỗi cạnh i→j: ATE[i,j] = độ_nhạy_j × W_dag[i,j].
         """
         self.eval()
         with torch.no_grad():
@@ -238,39 +235,31 @@ class MLP(nn.Module):
 
             n_samples, n_vars = X_ten.shape
 
-            # Base prediction through DAG-masked SEM
-            if W_dag is not None:
-                base_input = X_ten @ W_dag
-            else:
-                base_input = X_ten
+            # DAG-masked base input / Đầu vào cơ sở được che bởi DAG
+            base_input = X_ten @ W_dag if W_dag is not None else X_ten
+            y_base = self.pnl_transform.inverse(self.sem(base_input))
 
-            y_base = self.sem(base_input)
-            y_base = self.pnl_transform.inverse(y_base)
-
-            # Batched intervention: perturb each column of base_input by eps
+            # Batch perturbation: perturb each variable's input column by eps
+            # Can thiệp theo lô: nhiễu từng cột đầu vào một khoảng eps
             treat_batch = base_input.unsqueeze(0).repeat(n_vars, 1, 1)  # (d, n, d)
             perturbation = torch.eye(n_vars, device=self.device).unsqueeze(1) * eps
-            treat_batch += perturbation  # treat_batch[j] has column j perturbed
+            treat_batch += perturbation
 
             treat_flat = treat_batch.view(n_vars * n_samples, n_vars)
-            y_treat_flat = self.sem(treat_flat)
-            y_treat_flat = self.pnl_transform.inverse(y_treat_flat)
-            y_treat = y_treat_flat.view(n_vars, n_samples, n_vars)
+            y_treat = self.pnl_transform.inverse(self.sem(treat_flat)).view(n_vars, n_samples, n_vars)
 
-            # sensitivity[j] = how much output j changes when input j changes by eps
-            # Only the diagonal (j→j) matters for direct effect
+            # Diagonal sensitivity: how much output j responds to perturbation in j's input
+            # Độ nhạy đường chéo: đầu ra j phản ứng bao nhiêu khi đầu vào j bị nhiễu
             sensitivity = torch.zeros(n_vars, device=self.device)
             for j in range(n_vars):
                 sensitivity[j] = (y_treat[j, :, j] - y_base[:, j]).mean() / eps
 
-            # Direct ATE: sensitivity[j] × W_dag[i,j] for each parent i
+            # Direct ATE = sensitivity × edge weight / ATE trực tiếp = độ nhạy × trọng số cạnh
             if W_dag is not None:
-                ate_matrix = sensitivity.unsqueeze(0) * W_dag  # (1,d) * (d,d)
+                ate_matrix = sensitivity.unsqueeze(0) * W_dag
             else:
-                # No DAG info: fall back to full batched Jacobian
                 ate_matrix = torch.mean(y_treat - y_base.unsqueeze(0), dim=1) / eps
 
             ate_matrix.fill_diagonal_(0.0)
 
         return ate_matrix
-

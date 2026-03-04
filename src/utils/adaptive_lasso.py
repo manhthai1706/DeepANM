@@ -1,28 +1,26 @@
 """
-Adaptive LASSO-based Edge Selection for DeepANM.
+DeepANM Edge Selection via Nonlinear Adaptive LASSO.
+Replaces brittle fixed-threshold edge selection with:
+  1. Random Forest permutation importance (nonlinear edge scoring)
+  2. Conditional Independence (CI) pruning to remove indirect paths
 
-Replaces the brittle hard threshold (|W| > 0.015) with a statistically
-principled model selection method borrowed from LiNGAM.
-
-Adaptive LASSO procedure for each variable Xj:
-    1. Candidate parents = all variables that precede j in causal order.
-    2. Initial OLS fit → get |β_OLS|.
-    3. Adaptive weights = 1 / (|β_OLS| + ε).
-    4. LASSO with adaptive weights (equivalent to L1 penalty proportional to 1/|β_OLS|).
-       → Coefficients of weak/irrelevant parents are pushed exactly to 0.
-    5. Non-zero coefficient → confirmed edge parent → j.
-
-Why this works better than fixed threshold:
-    - OLS magnitudes adapt to each variable's scale automatically.
-    - LASSO provides exact sparsity (zero vs non-zero), not noisy near-threshold values.
-    - Cross-validation selects the optimal regularization per variable.
+DeepANM Chọn Cạnh qua Adaptive LASSO Phi tuyến.
+Thay thế lựa chọn cạnh ngưỡng cố định bằng:
+  1. Tầm quan trọng hoán vị Random Forest (chấm điểm cạnh phi tuyến)
+  2. Kiểm định Độc lập có Điều kiện (CI) để loại bỏ đường gián tiếp
 """
 
 import numpy as np
 
 
 def _ols_fit(X_parents: np.ndarray, Xj: np.ndarray) -> np.ndarray:
-    """OLS coefficients of Xj ~ Xparents (with intercept removed via centering)."""
+    """
+    Linear OLS coefficients for Xj ~ X_parents (mean-centered).
+    Used as a fast linear fallback when RF is disabled.
+
+    Hệ số OLS tuyến tính cho Xj ~ X_parents (chuẩn hóa tâm).
+    Dùng làm dự phòng tuyến tính nhanh khi tắt RF.
+    """
     Xc = X_parents - X_parents.mean(axis=0)
     yc = Xj - Xj.mean()
     try:
@@ -35,11 +33,13 @@ def _ols_fit(X_parents: np.ndarray, Xj: np.ndarray) -> np.ndarray:
 def _adaptive_lasso_column(X_parents: np.ndarray, Xj: np.ndarray,
                             gamma: float = 1.0) -> np.ndarray:
     """
-    Fit Xj ~ Xparents using Non-linear Ensemble Selection (Random Forest).
-    
-    Biological data (like Sachs) has severe non-linear saturation effects 
-    that break Linear LASSO. We use Random Forest Feature Importances as 
-    a non-linear equivalent to Adaptive LASSO.
+    Nonlinear edge scoring via Random Forest permutation importance.
+    An edge i→j is confirmed if: mean permutation drop > 3% AND drop > 2σ noise.
+    Falls back to OLS if sklearn is unavailable.
+
+    Chấm điểm cạnh phi tuyến qua tầm quan trọng hoán vị Random Forest.
+    Cạnh i→j được xác nhận nếu: mức giảm trung bình > 3% VÀ giảm > 2σ nhiễu.
+    Dự phòng OLS nếu sklearn không có sẵn.
     """
     try:
         from sklearn.ensemble import RandomForestRegressor
@@ -49,33 +49,34 @@ def _adaptive_lasso_column(X_parents: np.ndarray, Xj: np.ndarray,
         if p == 0:
             return np.array([])
 
-        reg = RandomForestRegressor(n_estimators=100, max_depth=5, min_samples_leaf=5, n_jobs=-1, random_state=42)
+        reg = RandomForestRegressor(n_estimators=100, max_depth=5, min_samples_leaf=5,
+                                    n_jobs=-1, random_state=42)
         reg.fit(X_parents, Xj)
         
-        # Calculate permutation importance on training data
-        # n_repeats is kept low (5) for speed
         result = permutation_importance(reg, X_parents, Xj, n_repeats=5, random_state=42, n_jobs=-1)
         
-        # An edge is confirmed if dropping it reduces R^2 strictly > 0.03 (3% of variance)
-        # and the mean drop is larger than 2 standard deviations of the permutation noise (robust)
         mean_drop = result.importances_mean
         std_drop = result.importances_std
-        
+        # Edge confirmed: meaningful R² drop and signal > 2× noise std
+        # Cạnh xác nhận: mức giảm R² có ý nghĩa và tín hiệu > 2× độ lệch chuẩn nhiễu
         mask = (mean_drop > 0.03) & (mean_drop > 2.0 * std_drop)
         return mask.astype(float)
 
     except Exception:
-        # Fallback: plain OLS if sklearn fails
         return _ols_fit(X_parents, Xj)
 
 def _partial_correlation_pruning(X: np.ndarray, parent: int, target: int, other_parents: list) -> bool:
     """
-    Test if 'parent' is conditionally independent of 'target' given 'other_parents'.
-    If conditionally independent, this is an indirect path (False Positive) -> Returns True (prune it).
-    Using Non-linear HistGradientBoosting to find residuals.
+    Test if parent ⊥ target | other_parents (conditional independence).
+    Uses nonlinear HistGBM residuals + Pearson correlation test.
+    Returns True if the edge should be pruned (indirect path detected).
+
+    Kiểm định parent ⊥ target | other_parents (độc lập có điều kiện).
+    Dùng phần dư HistGBM phi tuyến + kiểm định tương quan Pearson.
+    Trả về True nếu cạnh cần loại bỏ (phát hiện đường gián tiếp).
     """
     if len(other_parents) == 0:
-        return False  # No intermediate variables -> must be direct if dependent
+        return False  # No conditioning set → cannot be indirect / Không có tập điều kiện → không thể gián tiếp
         
     try:
         from sklearn.ensemble import HistGradientBoostingRegressor
@@ -93,77 +94,68 @@ def _partial_correlation_pruning(X: np.ndarray, parent: int, target: int, other_
         
         corr, p_value = pearsonr(res_i, res_j)
         
-        # If p-value > 0.05, we fail to reject the null hypothesis of independence
-        # (they are conditionally independent). Also ensure correlation is small.
+        # Prune if conditionally independent: p > 0.01 AND |corr| < 0.1
+        # Cắt nếu độc lập có điều kiện: p > 0.01 VÀ |corr| < 0.1
         return p_value > 0.01 and abs(corr) < 0.1
     except Exception:
         return False
 
 
-
-def adaptive_lasso_dag(X: np.ndarray, causal_order: list) -> np.ndarray:
+def adaptive_lasso_dag(X: np.ndarray, causal_order: list, layer_constraint=None,
+                       use_rf=True, use_ci_pruning=True) -> np.ndarray:
     """
-    Build a binary DAG adjacency matrix using Adaptive LASSO edge selection.
+    Build a binary DAG adjacency matrix using edge selection.
 
-    For each variable j (processed in causal order), run Adaptive LASSO of Xj
-    on all its topological ancestors. Non-zero coefficients → edges.
+    For each variable j (in causal order), identifies its true parents among
+    topological ancestors via RF importance and optional CI pruning.
 
     Parameters
     ----------
-    X            : (n_samples, n_vars) array — observational data
-    causal_order : list of int, root-first (from toposort module)
-    labels       : list of str, names of the variables to apply prior layer knowledge.
+    X               : (n_samples, n_vars) observational data
+    causal_order    : root-first variable ordering (from TopoSort)
+    layer_constraint: dict mapping node → layer level for feed-forward enforcement
+    use_rf          : if True, use RF importance; if False, use linear OLS
+    use_ci_pruning  : if True, prune indirect edges via CI test
 
     Returns
     -------
-    W_bin : (n_vars, n_vars) binary float array
-            W_bin[i, j] = 1 means edge i → j was confirmed
+    W_bin : (n_vars, n_vars) binary matrix; W_bin[i,j]=1 means confirmed edge i→j
+
+    Xây dựng ma trận kề DAG nhị phân qua chọn cạnh.
+
+    Với mỗi biến j (theo thứ tự nhân quả), xác định cha thật trong các tổ tiên
+    topo qua tầm quan trọng RF và kiểm định CI tùy chọn.
+
+    Tham số
+    -------
+    X               : dữ liệu quan sát (n_samples, n_vars)
+    causal_order    : thứ tự biến gốc-trước (từ TopoSort)
+    layer_constraint: dict ánh xạ node → tầng để ép chiều feed-forward
+    use_rf          : True dùng RF, False dùng OLS tuyến tính
+    use_ci_pruning  : True loại bỏ cạnh gián tiếp qua kiểm định CI
+
+    Trả về
+    ------
+    W_bin : ma trận nhị phân (n_vars, n_vars); W_bin[i,j]=1 nghĩa là cạnh i→j được xác nhận
     """
-    
-    # ---------------------------------------------------------
-    # Sachs Biology Knowledge: Layer Ordering Enforcement
-    # ---------------------------------------------------------
-    labels = getattr(X, 'columns', ['praf', 'pmek', 'plcg', 'PIP2', 'PIP3', 'p44/42', 'pakts473', 'PKA', 'PKC', 'P38', 'pjnk'])
-    
-    # Tầng 1: Lipid (Nút khởi nguồn mạng hoặc nguồn ngoại lai màng tế bào)
-    layer_lipid = {'plcg', 'PIP2'}
-    
-    # Tầng 2: Kinase Khởi nguồn tín hiệu
-    layer_kinase = {'PKA', 'PKC'}
-    
-    # Tầng 3: Trục MAPK (Xương sống) / Quá trình tương đồng / Hóa chất hỗ trợ
-    layer_mapk = {'praf', 'pmek', 'p44/42', 'PIP3'}
-    
-    # Tầng 4: Modulators (Tay sai cuối) / Đầu ra
-    layer_modulator = {'pakts473', 'P38', 'pjnk'}
-    
-    def get_layer(name):
-        name = name.lower()
-        if name in [n.lower() for n in layer_lipid]: return 1
-        if name in [n.lower() for n in layer_kinase]: return 2
-        if name in [n.lower() for n in layer_mapk]: return 3
-        if name in [n.lower() for n in layer_modulator]: return 4
-        return 5
-    
     n_vars = X.shape[1]
     W_bin = np.zeros((n_vars, n_vars), dtype=np.float32)
 
     for step, j in enumerate(causal_order):
-        # All variables that precede j in the causal order are potential parents
-        potential_parents = causal_order[:step]   # root-first slice
+        potential_parents = causal_order[:step]  # All predecessors in causal order / Mọi tiền nhiệm
         if len(potential_parents) == 0:
-            continue   # Root variable: no parents
+            continue
             
-        # [KNOWLEDGE RULE] Apply Layer Feed-Forward Constraint
-        # We enforce that signals can only flow from Layer N to Layer >= N
-        # We do NOT allow backwards flow! (e.g. MAPK cannot cause Lipid)
+        # Apply layer constraint if provided / Áp dụng ràng buộc tầng nếu có
+        target_layer = layer_constraint.get(j, 5) if layer_constraint else None
         valid_parents = []
-        target_layer = get_layer(labels[j])
-        
         for p in potential_parents:
-            parent_layer = get_layer(labels[p])
-            if parent_layer <= target_layer: # Feed-Forward ONLY
+            if layer_constraint is None:
                 valid_parents.append(p)
+            else:
+                parent_layer = layer_constraint.get(p, 5)
+                if parent_layer <= target_layer:  # Feed-forward only / Chỉ chiều thuận
+                    valid_parents.append(p)
                 
         if len(valid_parents) == 0:
             continue
@@ -171,14 +163,18 @@ def adaptive_lasso_dag(X: np.ndarray, causal_order: list) -> np.ndarray:
         X_parents = X[:, valid_parents]
         Xj = X[:, j]
 
-        coef = _adaptive_lasso_column(X_parents, Xj)
+        # Edge scoring: RF (nonlinear) or OLS (linear) / Chấm điểm cạnh: RF hoặc OLS
+        coef = _adaptive_lasso_column(X_parents, Xj) if use_rf else _ols_fit(X_parents, Xj)
 
         for k, parent in enumerate(valid_parents):
-            if abs(coef[k]) > 1e-8:    # Initial selection from Random Forest
-                
-                # CI Pruning: condition on all OTHER valid parents
-                other_parents = [p for p in valid_parents if p != parent]
-                should_prune = _partial_correlation_pruning(X, parent, j, other_parents)
+            if abs(coef[k]) > 1e-8:
+                # CI Pruning: remove edge if parent ⊥ j | other_parents
+                # CI Pruning: loại cạnh nếu parent ⊥ j | other_parents
+                if use_ci_pruning:
+                    other_parents = [p for p in valid_parents if p != parent]
+                    should_prune = _partial_correlation_pruning(X, parent, j, other_parents)
+                else:
+                    should_prune = False
                 
                 if not should_prune:
                     W_bin[parent, j] = 1.0
@@ -189,21 +185,13 @@ def adaptive_lasso_dag(X: np.ndarray, causal_order: list) -> np.ndarray:
 def adaptive_lasso_from_ate(ATE: np.ndarray, X: np.ndarray,
                              causal_order: list) -> np.ndarray:
     """
-    Combine Neural ATE signal with Adaptive LASSO for more robust edge selection.
+    Double-gate edge selection: RF LASSO ∩ ATE > threshold.
+    Keeps edges that are both statistically nonzero (RF) and causally significant (ATE).
 
-    Strategy:
-        1. Run Adaptive LASSO on raw X to get structural edges.
-        2. Intersect with ATE > eps to confirm only edges with measurable effect.
-
-    This double-gate approach keeps edges that are:
-        (a) statistically nonzero in regression AND
-        (b) have detectable causal effect magnitude
-
-    Returns
-    -------
-    W_bin : (n_vars, n_vars) binary float array
+    Chọn cạnh cổng kép: RF LASSO ∩ ATE > ngưỡng.
+    Giữ cạnh vừa khác không về thống kê (RF) vừa có ý nghĩa nhân quả (ATE).
     """
     W_lasso = adaptive_lasso_dag(X, causal_order)
-    # ATE gate: filter edges with negligible causal effect magnitude
+    # ATE gate: filter edges with negligible causal magnitude / Cổng ATE: lọc cạnh có cường độ nhân quả nhỏ
     ATE_gate = (np.abs(ATE) > 0.01).astype(float)
     return (W_lasso * ATE_gate).astype(float)
