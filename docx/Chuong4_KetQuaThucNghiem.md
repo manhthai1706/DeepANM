@@ -93,7 +93,28 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 - **Lỗi đảo ngược (Reversals):** **0** (Hoàn toàn triệt tiêu các lỗi về hướng nhờ cấu trúc phân tầng).
 - **Tính ổn định:** Việc áp dụng ràng buộc đa tầng giúp thu hẹp không gian tìm thấy các cạnh giả (FP giảm từ 12 xuống còn 6).
 
-Điều này chứng minh DeepANM không chỉ hiệu quả trong khám phá mù (blind discovery) mà còn rất hiệu quả khi được "dẫn đường" bởi tri thức chuyên gia, giúp tạo ra các đồ thị nhân quả có độ tin cậy sinh học cao.
+### 4.2.6 So sánh với các phương pháp hiện đại
+
+Để đánh giá khách quan vị thế của mô hình đề xuất, chúng tôi thực hiện so sánh chỉ số SHD của DeepANM với các thuật toán khám phá nhân quả hàng đầu được công bố trong các nghiên cứu gần đây (điển hình là GraN-DAG, 2019).
+
+<div align="center">
+
+**Bảng 4.2: So sánh SHD trên Sachs Dataset với các thuật toán SOTA**
+
+| Thuật toán | SHD | Đặc điểm mô hình |
+| :--- | :--- | :--- |
+| **NOTEARS (Zheng et al., 2018)** | 22 | Tối ưu hóa liên tục, giả định tuyến tính |
+| **DAG-GNN (Yu et al., 2019)** | 19 | Dựa trên đồ thị mạng neural (VAE) |
+| **NOTEARS-MLP (Zheng et al., 2020)** | 16 | Phiên bản phi tuyến của NOTEARS |
+| **CAM (Bühlmann et al., 2014)** | 12 | Hiệu quả với ANM phi tuyến, chi phí tính toán cao |
+| **GraN-DAG (Lachapelle et al., 2019)** | 13 | Sử dụng Neural Network và cơ chế cắt tỉa Gradient |
+| **DeepANM** (Ours - Không tiên nghiệm) | 16 | Sử dụng kiến trúc 3 pha và bộ lọc Double-Gate |
+| **DeepANM** (Ours - Có phân tầng) | **12** | **Tích hợp tri thức miền sâu, triệt tiêu lỗi đảo ngược** |
+
+</div>
+
+Kết quả cho thấy khi không sử dụng tiên nghiệm tri thức miền, DeepANM đạt hiệu năng tương đương với **NOTEARS-MLP**. Tuy nhiên, khi được tích hợp các ràng buộc phân tầng (Layer Constraints), DeepANM đạt được chỉ số SHD tối ưu là **12**, ngang bằng với thuật toán CAM và tốt hơn GraN-DAG. Điều này khẳng định khả năng tận dụng tri thức miền hiệu quả của kiến trúc đề xuất.
+
 
 ## 4.3 Nghiên cứu cắt bỏ thành phần (Ablation Study)
 
@@ -101,7 +122,7 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 
 <div align="center">
 
-**Bảng 4.2: So sánh hiệu quả của các thành phần trong DeepANM**
+**Bảng 4.3: So sánh hiệu quả của các thành phần trong DeepANM**
 
 | Cấp độ | Cấu hình thành phần | SHD | F1 | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- |
