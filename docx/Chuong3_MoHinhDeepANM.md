@@ -65,9 +65,11 @@ Dữ liệu thực tế thường chịu ảnh hưởng nặng nề bởi sự k
 Trái tim của Pha 1 là khả năng đo lường độ độc lập phi tuyến. Chúng ta sử dụng định lý Hilbert-Schmidt (HSIC). Tuy nhiên, tính toán HSIC truyền thống yêu cầu tính ma trận Gram có độ phức tạp $O(N^2)$. DeepANM giải quyết bài toán này bằng **Định lý Bochner** thông qua cấu trúc ánh xạ đặc trưng ngẫu nhiên.
 
 Công thức xấp xỉ Kernel Gaussian bằng RFF:
+
 $$
 \phi(x) = \sqrt{\frac{2}{D}} \cos(Wx + b)
 $$
+
 Trong đó $W$ được lấy mẫu từ phân phối Normal. Kỹ thuật này chuyển đổi bài toán kernel phức tạp thành các phép nhân ma trận tuyến tính, giúp tốc độ tính toán tăng gấp hàng chục lần nhưng vẫn giữ được độ chính xác cao (Xem cơ chế Fast-HSIC).
 
 ### 3.2.3 Thuật toán Sắp xếp Chìm (Greedy Sink-First)
@@ -149,6 +151,7 @@ Công thức tối ưu hóa kép trong DeepANM:
 $$
 \min_{\Theta, W} \mathcal{L}(\Theta, W) + \alpha \cdot h(W) + \frac{\rho}{2} |h(W)|^2
 $$
+
 Trong đó $h(W)$ là hàm phạt DAGMA. Hệ thống sử dụng trình tối ưu **AdamW** với trọng số suy giảm (weight decay) để kiểm soát độ phức tạp của mô hình.
 
 Quy trình cập nhật ALM thực tế:
@@ -210,7 +213,7 @@ graph TD
 
 ## 3.5 Đặc tính Kỹ thuật và Tính Diễn dịch
 
-Mô hình DeepANM được thiết kế với các đặc tính vượt trội:
+Mô hình DeepANM được thiết kế với các đặc tính :
 - **Scale Invariance:** Nhờ vào bước chuẩn hóa phân vị (Quantile Transformer), mô hình không bị ảnh hưởng bởi độ lệch thang đo đơn vị giữa các biến.
 - **Robustness:** Cấu trúc Res-MLP và Gradient Clipping giúp mô hình ổn định cả trên các tập dữ liệu có nhiễu cực đại.
 - **Identifiability:** Bằng cách tách biệt phần dư và kiểm định HSIC, mô hình khai thác tối đa tính bất đối xứng của nhiễu để phân biệt Cha - Con.
