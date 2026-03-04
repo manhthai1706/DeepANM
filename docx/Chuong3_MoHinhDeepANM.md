@@ -1,260 +1,199 @@
-# CHƯƠNG 3: MÔ HÌNH DEEP ADDITIVE NOISE MODEL (DeepANM)
+# CHƯƠNG 3: MÔ HÌNH NHÂN QUẢ HỌC SÂU THÍCH NGHI (DeepANM)
 
-Chương này trình bày chi tiết về kiến trúc, tư tưởng thiết kế và thuật toán vận hành của hệ thống DeepANM (Deep Additive Noise Model) do học viên đề xuất và phát triển. Hệ thống này là sự kết giao chặt chẽ giữa Toán học tối ưu liên tục, Lý thuyết Nhân quả và Trí tuệ Nhân tạo Học Sâu (Deep Learning). Mục tiêu của DeepANM là phá vỡ bức tường hạn chế của dữ liệu nhiễu phi tuyến và cung cấp một lộ trình (pipeline) tự động hóa khép kín từ khâu tiếp nhận tập dữ liệu thô (raw observational data) cho đến định hình chính xác Ma trận cấu trúc Đồ thị Có hướng Không chu trình (DAG).
+## 3.1 Triết lý Thiết kế và Tầm nhìn Hệ thống
 
-## 3.1 Kiến trúc Tổng thể (Overall Pipeline Architecture)
+Chương này trình bày chi tiết về kiến trúc, tư tưởng thiết kế và quy trình vận hành của hệ thống DeepANM (Deep Additive Noise Model) - một mô hình lai (hybrid model) do học viên đề xuất nhằm giải quyết bài toán khám phá cấu trúc nhân quả (Causal Discovery) trong môi trường dữ liệu phức tạp. DeepANM không chỉ đơn thuần là một thuật toán học máy, mà là một hệ thống tích hợp các cột trụ kiến thức từ Toán học tối ưu liên tục, Lý thuyết Nhân quả của Judea Pearl và các tiến bộ mới nhất trong lĩnh vực học sâu (Deep Learning).
 
-Để giải quyết một bài toán vô cùng phức tạp và mang tính rủi ro cao như Tối ưu NP-Hard trên dữ liệu tỷ lệ độ nhiễu cao (High Noise-to-Signal ratio), một Mạng Neural truyền thống (như Multi-layer Perceptron đơn thuần) là không đủ. Việc ép một mạng neural vừa học quan hệ hàm tương quan, vừa phải tự dò đường xem cạnh nào không được phép đi luẩn quẩn (Cyclic) thường xuyên dẫn đến các điểm tối ưu cục bộ (Local Minima tệ hại). Hệ quả là máy tính có thể vẽ ra một đồ thị gần như nối các đỉnh với nhau chằng chịt, hoặc nối ngược quy luật tự nhiên.
+### 3.1.1 Thách thức của các mô hình truyền thống
 
-Nhận diện được nút thắt này, tôi đã thiết kế kiến trúc của DeepANM được phân rã thành **Hệ thống 3 Pha (3-Phase Pipeline)** chuyên biệt nhằm bảo vệ tính toàn vẹn của đồ thị phân cấp ở từng bước:
+Trong kỷ nguyên dữ liệu lớn, việc xác định mối quan hệ "cha-con" giữa các biến số không còn đơn giản là tính toán hệ số tương quan (Correlation). Các phương pháp truyền thống như PC Algorithm hay Greedy Equivalence Search (GES) thường gặp khó khăn khi đối mặt với:
+1.  **Tính phi tuyến (Non-linearity):** Các mối quan hệ sinh học hoặc kinh tế thường không tuân theo các đường thẳng tuyến tính đơn giản.
+2.  **Nhiễu không đồng nhất (Heteroscedasticity):** Sai số của mô hình thay đổi tùy theo giá trị của biến đầu vào, làm mất tính chính xác của các kiểm định thống kê cổ điển.
+3.  **Bùng nổ tổ hợp (Combinatorial Explosion):** Số lượng đồ thị DAG tăng theo hàm mũ so với số lượng biến, khiến việc tìm kiếm rời rạc trở nên bất khả thi với các hệ thống lớn (ví dụ: mạng gen hàng ngàn node).
 
-```mermaid
-graph TD
-    classDef highlight fill:#000,color:#fff,stroke:#333,stroke-width:2px;
-    classDef sub core fill:#bbf,stroke:#333,stroke-width:2px;
-    
-    Data["Dữ liệu quan sát<br/>đa biến X"] --> Preprocess("Tiền xử lý &<br/>Loại bỏ nhiễu")
-    
-    subgraph phase1 ["Pha 1: TopoSort"]
-        Preprocess --> RFF["Phép chiếu<br/>RFF"]
-        RFF --> Sink["HSIC<br/>Sink-First"]
-    end
-    
-    subgraph phase2 ["Pha 2: Học SCM"]
-        Sink -->|"Thứ tự"| Encoder["VAE +<br/>Gumbel"]
-        Sink -->|"Biến"| SEM["Neural<br/>SCM"]
-        Encoder -->|"Phân cụm"| Combine((Ensemble))
-        SEM -->|"Dự đoán"| Combine
-        Combine --> Decoder["Monotonic<br/>Decoder"]
-        Decoder --> ALM["ALM<br/>Optimizer"]
-    end
-    
-    subgraph phase3 ["Pha 3: Cắt tỉa"]
-        ALM -->|"Trọng số"| DoubleGate("Double-Gate<br/>Filter")
-        DoubleGate --> RF["RF<br/>Importance"]
-        DoubleGate --> ATE["Jacobian<br/>ATE"]
-        RF --> ALasso["Adaptive<br/>LASSO"]
-        ATE --> ALasso
-        ALasso --> CI["Test CI"]
-    end
-    
-    CI --> Final["DAG Cuối cùng"]
-    
-    class Sink,ALM,CI highlight;
-    class Encoder,SEM,Decoder core;
-```
-<p align="center"><b>Hình 3.1: Kiến trúc luồng hệ thống 3 pha của DeepANM</b></p>
+### 3.1.2 Mục tiêu chiến lược của DeepANM
 
+DeepANM được xây dựng để phá vỡ bức tường hạn chế này thông qua một lộ trình tự động hóa khép kín (end-to-end pipeline). Hệ thống được thiết kế để:
+-   **Định danh cấu trúc phi tuyến:** Tận dụng sức mạnh của Mạng Neural để xấp xỉ bất kỳ hàm nhân quả phức tạp nào.
+-   **Tối ưu hóa liên tục:** Chuyển đổi bài toán tìm kiếm đồ thị rời rạc (NP-Hard) sang bài toán tối ưu hóa trong không gian số thực, cho phép sử dụng các kỹ thuật Gradient Descent hiện đại.
+-   **Bảo vệ tính phi chu trình (Acyclicity):** Đảm bảo đồ thị kết quả luôn là một DAG hợp lệ thông qua các rào chắn toán học thông minh.
 
-**Tổng quan dòng đời vận hành của 3 pha:**
-- **Pha 1 (TopoSort - Sắp xếp Topological):** Đóng vai trò là "Nhà chiến lược". Không vội vàng nhồi trọng số vào học máy sâu, pha này dùng phân tích thống kê toán học (HSIC) để tìm ra một chuỗi (Order) các biến được sắp xếp từ Tổ tiên (Nguyên nhân Gốc) $\to$ ... $\to$ Đóng vai trò con cháu (Sink Nodes). Kết quả định hình một biên giới để chặn đường Mạng Neural không vi phạm nguyên tắc xoay vòng sau này.
-- **Pha 2 (Neural SCM - Khớp Mạng Phương trình Cấu trúc):** Là cốt lõi (Trái tim của hệ thống). Một hệ thống VAE - Khớp nhiễu Giao thoa sẽ tính toán sự lây lan tín hiệu hàm ẩn và áp dụng nhân tử Augmented Lagrangian Barrier chặn đường chu kỳ (Acyclicity).
-- **Pha 3 (Edge Post-Pruning - Cắt tỉa thông minh):** Vận hành như một "Bác sĩ Ngoại khoa". Thay vì để ngưỡng cố định (VD: trọng số $< 0.3$ thì bỏ cạnh vì coi nó là nhiễu), hệ thống ứng dụng Rừng ngẫu nhiên (Random Forest) và lý thuyết can thiệp Do-calculus (ATE Jacobian matrix) để lọc đi các đường dẫn gián tiếp có tính lừa dối thống kê (False Positives).
+## 3.2 Cơ sở Lý thuyết và Các Định lý Phụ trợ
 
-Dưới đây là thiết kế chi tiết cấp cao về mặt kỹ thuật cho từng Pha.
+Trước khi đi sâu vào cấu trúc tầng của DeepANM, việc nắm vững các tiền đề toán học là vô cùng cần thiết để hiểu tại sao mô hình này có thể "nhìn thấy" được nhân quả từ dữ liệu quan sát.
 
----
+### 3.2.1 Mô hình Nhiễu Cộng phi tuyến (Nonlinear Additive Noise Model)
 
-## 3.2 Pha 1: Sắp xếp Topological & Chuẩn hóa Bất đối xứng (Phase 1)
+DeepANM dựa trên giả thuyết ANM, phát biểu rằng một biến kết quả $Y$ được tạo thành từ một hàm phi tuyến của các nguyên nhân $X$ cộng với một nhiễu độc lập $E$:
+$$Y = f(X) + E$$
 
-Thay vì phó mặc hoàn toàn trọng trách phân biệt "Cha - Con" cho Mạng Neural ALM, thực tế việc cung cấp cho ALM một bức tranh gợi ý về độ ưu tiên Topological (Node $A$ gần cội nguồn Nguyên nhân gốc hơn Node $B$) sẽ tăng độ ổn định của Loss Optimization lên đáng kể trên đa hình thể nhiễu.
+### 3.2.2 Định lý về Tính định danh Nhân quả (Causal Identifiability)
 
-### 3.2.1 Tiền xử lý Dữ liệu Chuẩn (Quantile Normalization & Isolation Forest)
+Định lý quan trọng nhất ở đây là **Tính định danh (Identifiability)**. Trong các mô hình tuyến tính Gaussian truyền thống, ta không thể phân biệt được hướng nhân quả nếu chỉ dựa vào dữ liệu quan sát (vấn đề Lớp tương đương Markov). Tuy nhiên, DeepANM tận dụng một kẽ hở toán học: nếu hàm $f$ là phi tuyến VÀ/HOẶC nhiễu $E$ không phải là Gaussian, thì hướng nhân quả sẽ được cố định một cách duy nhất.
 
-Dữ liệu tự nhiên thường chứa các giá trị biên cực dải (Extreme Outliers). Chẳng hạn, trong dữ liệu y khoa Protein (Sachs Dataset), đôi khi phép đo phổ bị kẹt tia Laser tạo ra cường độ lệch chuẩn (Z-score $> 5.0$). 
+Nói cách khác, sơ đồ nhân quả để lại "dấu vân tay" trong mớ hỗn độn của dữ liệu phi tuyến. DeepANM được thiết kế để truy vết các dấu vân tay này bằng cách ép sai số $E$ phải độc lập với $X$. Nếu ta giả định sai hướng (ví dụ $Y \to X$), sự độc lập này sẽ bị vi phạm một cách toán học, và mô hình sẽ lập tức nhận diện được sự sai lệch đó.
 
-Mạng Neural sử dụng hàm phi lồi (Non-convex) như Sigmoid và L2 Penalty (MSE Loss) cực kỳ nhạy cảm và dễ vỡ gradient bởi các nhiễu lớn bùng nổ này. Hệ thống được trang bị bộ Tiền xử lý hai lớp:
+### 3.2.3 Quy tắc Tối ưu liên tục cho Đồ thị rời rạc
 
-1. **Isolation Forest (Cách ly ngoại lệ):** Khởi chạy một tập các Cây quyết định ngẫu nhiên nhằm chia tách dữ liệu. Nếu một điểm dữ liệu bị tách rời quá nhanh khỏi quần thể, nó bị coi là nhiễu cực đại và loại bỏ để bảo vệ sự ổn định của quá trình huấn luyện.
-2. **Quantile Transformer (Chuẩn hóa Phân phối):** Để đảm bảo các thuật toán tối ưu hoạt động mượt mà, hệ thống ép mọi biến số về phân phối Chuẩn (Gaussian) theo hình chuông. Việc này giúp loại bỏ sự chênh lệch về thang đo (Scale) và hình dạng phân phối kỳ dị của dữ liệu thô.
+Một đóng góp vĩ đại của các nghiên cứu gần đây (như NOTEARS) mà DeepANM kế thừa là việc chuyển đổi cấu trúc đồ thị $G$ thành một ma trận trọng số thực $W$. Thay vì phải duyệt qua $2^{d^2}$ đồ thị (một con số lớn hơn cả số nguyên tử trong vũ trụ), ta chỉ cần tìm các giá trị $W$ sao cho hàm mất mát là nhỏ nhất. DeepANM nâng cấp tư tưởng này bằng cách sử dụng **DAGMA**, một kỹ thuật dựa trên Log-Determinant giúp việc ép đồ thị về dạng DAG nhanh hơn và chính xác hơn trên các hệ thống lớn.
 
-Mục tiêu cuối cùng của bước này là tạo ra một "sàn đấu" bằng phẳng nhất cho mô hình học máy, nơi các tín hiệu nhân quả không bị che lấp bởi các giá trị ngoại lai hay sự sai khác đơn vị quá lớn.
+## 3.3 Tiền xử lý Dữ liệu: Xây dựng Nền móng Tin cậy
 
-### 3.2.2 Thuật toán Greedy Sink-First Topological Ordering
+Một mô hình học sâu dù mạnh đến đâu cũng sẽ thất bại nếu "rác vào, rác ra" (Garbage In, Garbage Out). DeepANM tích hợp một quy trình tiền xử lý cực kỳ khắt khe để bảo vệ mạng nơ-ron khỏi các tín hiệu gây nhiễu.
 
-TopoSort là khâu tìm thứ tự hoán vị $\pi$ của các biến số sao cho nếu $\pi(i) < \pi(j)$ thì $X_{\pi(j)}$ tuyệt đối không thể là Nguyên nhân gây ra $X_{\pi(i)}$. Đây là tính chất của dòng chảy thông tin DAG.
-Khác với thuật toán sắp xếp dựa vào rễ (Leaf/Source First), quy trình học máy ANM bộc lộ tính độc lập phần dư cực đoan (Independence of residual signals) khi bóc vỏ biến Kết quả (Sink Nodes).
+### 3.3.1 Cách ly Ngoại lệ bằng Isolation Forest
 
-DeepANM áp dụng thuật toán **Sắp xếp Chìm tham lam (HSIC Greedy Sink-First Ordering)** dựa trên tư tưởng: "Nếu xoa bỏ hết các nguyên nhân, phần còn lại của một kết quả phải hoàn toàn ngẫu nhiên và độc lập".
+Trong thực tế, dữ liệu thường bị hỏng do lỗi cảm biến hoặc các biến cố cực đoan. Nếu đưa các giá trị này vào huấn luyện, mạng nơ-ron sẽ bị "vỡ" Gradient. 
+**Isolation Forest** hoạt động bằng cách xây dựng các cây quyết định ngẫu nhiên. Những điểm dữ liệu "lạ" sẽ bị cô lập rất nhanh (nằm ở các tầng nông của cây), trong khi dữ liệu bình thường cần nhiều bước chia tách hơn. DeepANM tự động loại bỏ các điểm này, giúp mô hình tập trung vào các quy luật phổ quát thay vì bị đánh lừa bởi các sai số cá biệt.
 
-**Quy trình logic:**
-1.  Giả định toàn bộ các biến là tổ tiên, thử nghiệm từng biến một đóng vai trò là "nút đích" (kết quả cuối cùng).
-2.  Sử dụng một mô hình học máy nhanh để dự đoán nút đích đó từ các biến còn lại.
-3.  Tính toán độ độc lập thống kê (thông qua chỉ số HSIC) giữa sai số dự đoán và các biến cha.
-4.  Nút nào có sai số "sạch" nhất (độc lập nhất) sẽ được chọn làm nút đích và đưa vào cuối danh sách.
-5.  Loại bỏ nút đó và lặp lại cho đến khi sắp xếp xong toàn bộ hệ thống.
+### 3.3.2 Chuẩn hóa Phân phối qua Quantile Transformation
 
-Kết quả của Pha 1 là một **Thứ tự Topological**, đóng vai trò là "kim chỉ nam" ngăn chặn việc mạng nơ-ron tạo ra các vòng lặp nghịch lý trong các bước tiếp theo.
+Mạng nơ-ron nhân quả rất nhạy cảm với thang đo của dữ liệu. Nếu biến $A$ có đơn vị là "triệu" và biến $B$ có đơn vị là "0.1", mô hình sẽ mặc định coi $A$ quan trọng hơn $B$. 
+DeepANM sử dụng **Quantile Transformer** để ép mọi biến số về cùng một phân phối Chuẩn (Gaussian). Kỹ thuật này không chỉ làm cân bằng thang đo mà còn giúp các thuật toán tối ưu như Adam hoạt động ổn định hơn, tránh hiện tượng bùng nổ hoặc biến mất gradient thường gặp trong các bài toán nhân quả phức tạp.
 
----
+## 3.4 Kiến trúc Luồng Hệ thống 3 Pha (3-Phase Pipeline)
 
-## 3.3 Pha 2: Cỗ máy Lõi Nhân quả (Deep Neural SCM Fitter - GPPOMC)
-
-DeepANM đưa ra cơ chế mô hình hóa Phương trình Cấu trúc (Structural Equations) cực kỳ mềm dẻo. Trong tự nhiên thực tế, cơ chế tự tác động gây ra hậu quả (Transfer Functions) giữa 2 biến không tồn tại dưới dạng 1 phương trình tuyến tính chung chung, mà thường bị xẻ nhỏ thành vô số cụm (Clusters) khác nhau. Ví dụ: Cơ chế Thuốc hạ Glucose hoạt động rất yếu trên người Béo phì so với người Bình thường do kháng Insulin (Hiện tượng Nhiễu không đồng nhất - Multimodal Heteroscedasticity).
-
-Để giải quyết, tôi thiết kế và tích hợp lõi GPPOMC kết cấu thành một vòng lặp logic khép kín:
+Để quản lý độ phức tạp và đảm bảo tính chính xác, tôi thiết kế DeepANM theo cấu trúc phân tầng gồm 3 pha chuyên biệt. Mỗi pha đóng một vai trò chiến lược trong việc thu hẹp không gian tìm kiếm và tinh chỉnh kết quả cuối cùng.
 
 ```mermaid
 graph TD
-    In["Dữ liệu X"] --> Mask["Cổng Gumbel<br/>& Mặt nạ Topo"]
-    In --> Encoder["Encoder VAE<br/>(Cluster Z)"]
+    classDef highlight fill:#0b1117,color:#fff,stroke:#58a6ff,stroke-width:2px;
+    classDef sub core fill:#161b22,stroke:#30363d,stroke-width:1px;
     
-    Mask -->|"Ma trận W"| Dot["Nhân ma trận<br/>(X @ W)"]
-    Dot --> SEM["Mạng Neural<br/>SEM (MLP)"]
+    Data["<b>Dữ liệu thô (X)</b><br/>Observational Data"] --> Pre["<b>Tiền xử lý</b><br/>Outliers & Norm"]
     
-    Dot --> RFF["Lớp RFF-GP<br/>(Kernel Mapping)"]
-    RFF --> GP_Head["Hồi quy GP<br/>(Non-linear)"]
+    subgraph phase1 ["PHÀ 1: ĐỊNH HƯỚNG TOPOSORT"]
+        Pre --> RFF["RFF Projection<br/>(Kernel Space)"]
+        RFF --> Sink["Greedy Sink-First<br/>(HSIC Order)"]
+    end
     
-    SEM --> Sum["Tổng hợp Dự đoán<br/>(MLP + GP)"]
-    GP_Head --> Sum
-    Encoder -->|z_soft| Sum
+    subgraph phase2 ["PHA 2: TỐI ƯU CỐT LÕI (SCM)"]
+        Sink -->|"Thứ tự ưu tiên"| GPPOM["Deep Neural SCM<br/>(VAE + DAGMA)"]
+        GPPOM --> ALM["ALM Optimization<br/>(Dual Loop)"]
+    end
     
-    Sum --> Res["Tính toán Phần dư<br/>(Residuals)"]
-    Sum --> Loss["Loss: MSE + NLL<br/>+ DAGMA"]
+    subgraph phase3 ["PHA 3: LỌC TINH (POST-PRUNING)"]
+        ALM -->|"Ma trận W_raw"| DG["Double-Gate Filter<br/>(ATE + RF)"]
+        DG --> CI["CI Testing<br/>(Spurious Refutation)"]
+    end
     
-    Res --> HSIC["Kiểm định HSIC<br/>(Độc lập Nhiễu)"]
-    HSIC --> Loss
+    CI --> Final["<b>KẾT QUẢ: ĐỒ THỊ DAG</b>"]
     
-    Loss -->|"Backprop"| Mask
+    class Data,Final highlight;
+    class GPPOM,Sink,DG sub;
 ```
-<p align="center"><b>Hình 3.2: Sơ đồ kiến trúc kỹ thuật chi tiết của khối GPPOM-HSIC</b></p>
+<p align="center"><b>Hình 3.1: Sơ đồ luồng vận hành 3 pha chiến lược của mô hình DeepANM</b></p>
 
+Sự phối hợp giữa 3 pha tạo ra một cơ chế tự kiểm chứng: Pha 1 gợi ý hướng đi, Pha 2 thực hiện xây dựng mô hình và Pha 3 đảm nhiệm vai trò kiểm soát chất lượng cuối cùng.
 
-### 3.3.1 Kiến trúc các Khối Mạng (Module Architecture)
+## 3.5 Pha 1: Khám phá Thứ tự Topological (TopoSort Phase)
 
-Sơ đồ mạng nơ-ron được thực hiện với kích thước Batch Tensor $(N_{batch}, d)$. Các lớp (Layer) xử lý của Mạng Neural DeepANM không phải các Lớp Fully-Connected chéo nhau giữa các Biến (Cross-Variable Mixing), mà được thiết kế dạng **Perceptron Cục bộ Song Tử (Local Perceptron for Variable Pairs)**, nhằm không phá vỡ tính Diễn dịch Tác động Nhân quả (Identifiability Causal Graph). Hệ thống có 3 cấu kiện:
+Thách thức lớn nhất trong học cấu trúc nhân quả là sự mơ hồ về chiều tác động. Nếu chỉ dựa vào tương quan, ta không thể biết $A \to B$ hay $B \to A$. Tuy nhiên, theo lý thuyết Additive Noise Model (ANM), nếu ta đi đúng chiều nhân quả, phần dư (Residual) sẽ độc lập với biến nguyên nhân.
 
-1. **Khối SEM Nhân quả Trọng tâm (ANM_SEM Module)** 
-   - Đầu vào: Ma trận $X$
-   - Vận hành: Đối với mỗi biến $j$, thiết lập một mạng đa tầng (MLP) với Lớp ẩn (Hidden Dim = 32), Tích hợp Activation LeakyReLU phi tuyến tĩnh.
-   - Đầu ra kỳ vọng của mạng: $\mu_j$. Lớp này học cách phản chiếu sự thay thế các hàm $f_j(PA(X_j))$ trong đó $PA(X_j)$ được kiểm soát bằng một ma trận mặt nạ $W_{adj}$ đè lên trước lúc feed forward:
-     $$X_{\text{masked}} = X \odot \sigma(\alpha \cdot W_{\text{logits}})$$
-   - Đảm bảo một khi trọng số Cạnh $W_{ij} \to 0$, $X_i$ vĩnh viễn không được đưa vào Lấy mẫu trọng số cho hàm dự đoán $\hat{f_j}$.
+### 3.5.1 Phép chiếu Không gian Đặc trưng ngẫu nhiên (Random Fourier Features)
 
-2. **Khối Phát hiện Cơ chế (Encoder VAE & Gumbel-Softmax Trick)**
-   - Cung cấp mô hình khả năng quyết định xem một dòng dữ liệu của bệnh nhân đang chịu chi phối bởi cụm cơ chế nhân quả số $k = 1$ hay $k = 2$ (Mặc định `n_clusters = 2` cho các trạng thái đối lập như Kích hoạt / Bất hoạt sinh hóa học).
-   - Encoder tiếp nhận $X$ đưa qua Linear + ReLU, trả lại ma trận log-Xác suất rời rạc $Logits = \log p(z | x)$ để xếp cụm.
-   - **Gumbel-Softmax Trick (Jang et al., 2016):** Mạng Neural thông thường không thể tính đạo hàm xuyên qua quá trình chọn lọc rời rạc bằng hàm Argmax $\arg\max_k (prob)$. Để Backpropagate luồng Error cho việc chọn Cụm $z \in \{1, \dots, K\}$, kiến trúc cộng thêm biến nhiễu Gumbel(0, 1) $g_k$:
-     $$z_k = \frac{\exp((\log p_k + g_k)/\tau)}{\sum_{j=1}^K \exp((\log p_j + g_j)/\tau)}$$
-     Tham số nhiệt độ Nhiễu Softmax $\tau \to 0$ sẽ ép vector xác suất thành định hướng One-Hot, nhưng vẫn khả vi để trượt Gradient xuống $f_j$.
+Để tính toán sự độc lập phi tuyến, ta cần làm việc trong không gian Hilbert (RKHS) với các hàm Kernel. Tuy nhiên, việc tính toán ma trận Kernel trực tiếp có độ phức tạp $O(N^2)$, cực kỳ chậm với tập dữ liệu lớn. DeepANM sử dụng kỹ thuật **Random Fourier Features (RFF)** dựa trên định lý Bochner để xấp xỉ Kernel.
 
-3. **Khối Đọc Nhiễu Biến Hóa (Monotonic Decoder YH)**
-   - Hàm dự báo $\mu$ của SEM dựa theo Gumbel cụm số $k$ sẽ được Decoder biến đổi Monotonic (đồng biến tăng) để giả lập sự méo mó không tuần hoàn của hàm rải rác:
-     $Y_{trans} = \text{Decoder}(\mu_z)$
-   - Sau đó tính toán phân phối log-likelihood của phần dư nhiễu bằng thuật toán phân bổ hỗn hợp Gaussian hỗn hợp theo phân hóa cụm DECI (Heterogeneous Noise Component).
+**Cơ sở lý thuyết:** RFF chuyển đổi dữ liệu đầu vào sang một không gian đặc trưng mới nơi mà tích vô hướng của các vector xấp xỉ đúng giá trị của một Gaussian Kernel. Điều này biến bài toán phi tuyến phức tạp thành các phép nhân ma trận tuyến tính nhanh chóng, giảm độ phức tạp xuống $O(N \cdot D)$.
 
-```mermaid
-graph TD
-    In["Đầu vào X"]
-    
-    subgraph Enc_Block ["1. Khối Encoder"]
-        In --> E1["Linear + GELU"]
-        E1 --> E2["Softmax / Gumbel"]
-        E2 --> Z["Cơ chế Z (Latent)"]
-    end
-    
-    Z --> SEM_Block
-    
-    subgraph SEM_Block ["2. Khối SEM (ANM_SEM)"]
-        In --> Mask["W-Masking"]
-        Mask --> Res["Res-MLP Blocks"]
-        Res --> Mu["Dự đoán mu_j"]
-    end
-    
-    subgraph Dec_Block ["3. Khối Decoder & Nhiễu"]
-        Mu --> PNL["PNL Decoder"]
-        PNL --> YH["Dự đoán Y_hat"]
-        YH --> Noise["Heterogeneous<br/>Noise Model (GMM)"]
-        Z -->|cluster weight| Noise
-    end
-    
-    Noise --> Loss["Loss: MSE+NLL+h(W)"]
-```
-<p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
+### 3.5.2 Chỉ số Độc lập HSIC (Hilbert-Schmidt Independence Criterion)
 
-### 3.3.2 Hàm Mất Mát Đa Mục Tiêu (Objective Loss Function)
+DeepANM sử dụng HSIC làm thước đo "la bàn" để định hướng. Khác với hệ số tương quan Pearson (chỉ đo quan hệ đường thẳng), HSIC có khả năng phát hiện mọi dạng phụ thuộc phi tuyến.
+- Nếu HSIC xấp xỉ 0: Hai biến hoàn toàn độc lập.
+- Nếu HSIC lớn: Tồn tại một mối liên kết ẩn nào đó.
+- Tính ứng dụng: Trong DeepANM, HSIC không chỉ dùng để chọn biến mà còn dùng làm một hàm mất mát (loss signal) để ép mô hình học đúng trật tự tự nhiên.
 
-Với hàng chục ngàn trọng số Param thiết kế, GPPOMC định hướng Back-propagation thông qua hàm Loss đồ sộ hòa trộn 4 chỉ số cực tiểu hóa. Đặt $\Theta$ là toàn tập Parameters của Neural Networks và $W$ là Ma trận kề Causal Graph DAG logit. 
+Trong Pha 1, HSIC được tính toán thần tốc nhờ vào lớp RFF đã nêu ở trên, cho phép thực hiện hàng ngàn phép thử nghiệm độc lập trong thời gian ngắn mà không gây quá tải cho hệ thống.
 
-Hàm Loss được thiết kế để cân bằng giữa sự chính xác của mô hình và tính hợp lệ của đồ thị:
-1. **Lỗi Tái cấu trúc:** Ép mô hình phải dự đoán đúng giá trị của các biến từ các biến cha của chúng.
-2. **Độ hợp lý của Nhiễu (NLL):** Đảm bảo phần sai số của mô hình tuân theo các quy luật thống kê tự nhiên, không bị vặn vẹo quá mức.
-3. **KL Divergence:** Ngăn chặn việc mô hình chỉ tập trung vào một cơ chế duy nhất, ép nó phải khám phá sự đa dạng của dữ liệu.
-4. **Rào chắn Phi chu trình (DAGMA):** Đây là thành phần quan trọng nhất, đóng vai trò như một lực đẩy cực mạnh ngăn cản các vòng lặp (Cycles) xuất hiện trong đồ thị.
+### 3.5.3 Chiến lược "Bóc vỏ" Sink-First (Greedy Sink-First Ordering)
 
-**B. Rào chắn Tối ưu Phi Chu Trình DAGMA (Acyclicity Constraint):**
+Điểm độc đáo của DeepANM so với các phương pháp cũ là chiến lược **"Tìm nút đích trước" (Sink-First)**. Trong một hệ thống nhân quả, biến nằm ở cuối luồng (Sink Node) là biến "yêu đuối" nhất - nó không gây ảnh hưởng lên ai nhưng lại nhận ảnh hưởng từ tất cả.
 
-Bởi vì $W \in \mathbb{R}^{d \times d}$ là hệ tọa độ liên tục (cạnh $0.4, 0.7, \dots$), thuật toán DAGMA được tích hợp vào để chặn mạng nơ-ron học đồ thị hồi tiếp tự thân.
-Dựa trên giá trị nghịch lưu Log-Determinant Barrier:
-$$ h_{DAGMA}(W) = - \log \det(\mathbf{I} - \alpha W \circ W) $$
-Đóng vai trò là Tường thành phạt (Penalty Barrier Function).
+**Quy trình logic mở rộng:**
+1.  **Giả thuyết đồng nhất:** Ta coi tất cả các biến đều có khả năng là nút đích.
+2.  **Mô phỏng dự đoán:** Với mỗi biến $X_i$, ta thử dùng tất cả các biến còn lại để dự đoán nó thông qua một mô hình hồi quy nhanh.
+3.  **Đánh giá phần dư:** Nếu $X_i$ thực sự là nút đích, thì sai số dự đoán của nó phải không còn chứa đựng bất kỳ thông tin nào từ các biến cha. Ta đo chỉ số HSIC giữa phần sai số này và các biến còn lại.
+4.  **Bóc vỏ:** Biến nào có HSIC thấp nhất chính là "Kết quả cuối cùng" của hệ thống tại thời điểm đó. Ta "bóc" nó ra, đưa vào danh sách thứ tự và lặp lại quá trình với các biến còn lại cho đến khi toàn bộ các node được sắp xếp.
 
-### 3.3.3 Vòng xoáy Tối ưu Augmented Lagrangian Method (ALM)
-
-Vì bài toán yêu cầu Cực tiểu $\mathcal{L}_{\text{toàn cục}}$ VỚI ĐIỀU KIỆN RÀNG BUỘC (Subject to constraint) $h_{DAGMA}(W) = 0$. Hai không gian này mâu thuẫn (Mạng càng tạo chu trình Cycle, Loss MSE càng nhỏ). Do vậy, tôi triển khai thuật toán ALM lừng danh (Bertsekas, 1982). Quá trình huấn luyện không chỉ dốc xuống bằng thuật toán Gradient Adam truyền thống một chiều mà gồm 2 vòng lặp (Dual-Loop Optimization):
-
-```mermaid
-sequenceDiagram
-    participant ALM as Vòng lặp ALM (Ngoài)
-    participant Adam as Tối ưu hóa Adam (Trong)
-    participant Graph as Đồ thị Nhân quả W
-
-    ALM->>Adam: Bắt đầu với hệ số phạt nhẹ
-    loop Huấn luyện Epoch
-        Adam->>Graph: Cập nhật trọng số để giảm Loss
-        Graph->>Adam: Tính toán vi phạm Chu trình h(W)
-    end
-    Adam->>ALM: Trả về đồ thị hiện tại
-    ALM->>ALM: Kiểm tra ràng buộc
-    Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
-    ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
-```
-<p align="center"><b>Hình 3.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
-
-
-Kỹ thuật ALM đẩy hệ số cấm chập mạch to lên theo thời gian. Giai đoạn đầu, mô hình được tự do khám phá các mối quan hệ. Nhưng dần về sau, khi hình phạt xấp xỉ vô cực, hệ thống mạng nơ-ron buộc phải tự cắt bỏ những mắt xích yếu nhất để triệt tiêu các vòng lặp, chỉ giữ lại những đường dây nhân quả cốt lõi nhất.
+Kết quả của Pha 1 là một **Thứ tự Topological (Permutation)**. Đây là một mỏ neo cực kỳ quan trọng, giúp mạng nơ-ron ở Pha 2 không bao giờ phải lo lắng về việc vẽ nhầm các đường quay ngược thời gian, từ đó tập trung hoàn toàn vào việc học hàm phi tuyến và phân rã cơ chế.
 
 ---
 
-## 3.4 Pha 3: Lọc Giao Tiếp Nhảm Bằng Cơ chế Hỗn Hợp Đồng Quy (Edge Post-Pruning Gate)
+## 3.6 Pha 2: Cỗ máy Lõi Nhân quả (Deep Neural SCM Fitter - GPPOMC)
 
-Kết thúc Pha 2 Mạng Neural, chúng ta thu được một Ma trận $W_{raw} = \sigma(W_{logits}) \in \mathbb{R}^{d \times d}$. Các hệ số lúc này bơi trong vùng liên tục (Ví dụ: 0.81, 0.45, 0.05, 0.001...). Vấn đề muôn thuở của Global optimization đó là $W_{raw}$ hầu như không bao giờ là Số Zeros hoàn chỉnh. Thậm chí các Node hoàn toàn không dính dáng, Mạng vẫn gán đại giá trị $0.1$. Làm thế nào để biết đường link $0.35$ kia là "Nhân quả thật sự" hay chỉ là "Sự bù trừ sai số hồi quy của mạng"?
+Nếu Pha 1 đóng vai trò "người dẫn đường", thì Pha 2 chính là "trái tim" của hệ thống DeepANM. Tại đây, ta thực sự xây dựng các phương trình cấu trúc phi tuyến (Structural Equation Models - SCM) để mô tả cách các biến số tương tác với nhau trong thế giới thực.
 
-Hầu hết hệ thống trên thế giới dùng một Threshold Tĩnh (Tất cả cạnh $< 0.3$ cắt bỏ). Điều này hết sức ngớ ngẩn do không phân định quan trọng trong từng cấu trúc (Biến $A$ có Range 10 triệu, Biến $B$ Rate 0.5, thì $W_{ij} = 0.02$ có thể là nhân quả sống còn chấn động hệ gen). 
+### 3.6.1 Cơ chế Kết hợp VAE và Cổng Gumbel-Softmax
 
-Dự án DeepANM triển khai bộ thiết kế lọc 2 cổng (Double-Gate) cực kỳ chặt chẽ:
+DeepANM kế thừa và phát triển tư tưởng từ kiến trúc Biến phân (Variational Auto-Encoder - VAE). Tuy nhiên, thay vì chỉ nén dữ liệu, DeepANM sử dụng VAE để khám phá các **Cơ chế Nhân quả ẩn (Latent Causal Mechanisms)**.
 
-```mermaid
-graph TD
-    Raw["Đồ thị thô<br/>Phase 2"] --> Gate1["Cổng 1:<br/>Neural Jacobian ATE"]
-    Raw --> Gate2["Cổng 2:<br/>RF Importance"]
-    Gate1 --> Logic{Kết hợp & Lọc}
-    Gate2 --> Logic
-    Logic --> CI["Cổng 3:<br/>Test Độc lập CI"]
-    CI --> Final["DAG Cuối cùng"]
-```
-<p align="center"><b>Hình 3.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
+Trong thực tế, một mối quan hệ $A \to B$ có thể thay đổi tùy theo điều kiện môi trường. DeepANM thiết kế một khối **Encoder** để phân loại mỗi mẫu dữ liệu vào một "cụm cơ chế" (Cluster). Để bộ não máy tính có thể học được các lựa chọn rời rạc này (chọn Cụm 1 hay Cụm 2) mà vẫn có thể tính đạo hàm (Backpropagation), tôi sử dụng thủ thuật **Gumbel-Softmax**. Kỹ thuật này cho phép mô hình thử nghiệm các cấu trúc khác nhau một cách ngẫu nhiên nhưng vẫn hội tụ về một lựa chọn tối ưu nhất.
 
+### 3.6.2 Mô hình hóa Phương trình Cấu trúc bằng Res-MLP
 
-### 3.4.1 Màng Lọc Cơ Sở Jacobian (Neural ATE Score)
+Để học các hàm phi tuyến $f(X)$, DeepANM sử dụng một mạng nơ-ron đa tầng với kết nối thặng dư (Residual MLP).
+- **Residual Blocks:** Giúp dòng Gradient chảy mượt mà xuyên suốt các lớp mạng, ngăn chặn hiện tượng mất mát thông tin khi mạng quá sâu.
+- **Activation GELU:** Sử dụng hàm kích hoạt GELU (thay vì ReLU truyền thống) giúp các đường cong nhân quả mượt mà hơn, phản ánh chính xác các quy luật vật lý và sinh học trong tự nhiên.
 
-Dựa trên lý thuyết can thiệp của Judea Pearl, ATE đo lường sự thay đổi của biến "Con" khi chúng ta tác động trực tiếp vào biến "Cha". DeepANM ép mạng nơ-ron phải tính toán: "Nếu tôi rung lắc nhẹ giá trị của biến Cha, biến Con sẽ phản ứng bao nhiêu?". Những cạnh có phản ứng quá yếu sẽ bị coi là nhiễu và loại bỏ ngay lập tức.
+### 3.6.3 Xây dựng Mô hình Nhiễu không đồng nhất (Heterogeneous Noise Model)
 
-### 3.4.2 Màng Lọc Permutation Importance (Random Forest)
+Đây là một trong những điểm đột phá nhất của dự án. Hầu hết các mô hình nhân quả hiện nay (như NOTEARS hay GraN-DAG) đều giả định nhiễu là hằng số hoặc tuân theo phân phối Gaussian đơn giản. Điều này là xa rời thực tế.
+Trong dữ liệu y sinh, một gen có thể có nhiễu rất nhỏ ở nồng độ thấp nhưng lại nhiễu cực đại ở nồng độ cao. DeepANM giải quyết vấn đề này bằng mô hình **GMM (Gaussian Mixture Model)**:
+- Mạng nơ-ron không chỉ dự đoán giá trị trung bình $\mu$, mà còn dự đoán cả phân phối sai số.
+- Cho phép mô hình "chấp nhận" các vùng dữ liệu bất định mà không làm chệch hướng đồ thị nhân quả chính.
 
-Để kiểm chứng lại một lần nữa bằng một phương pháp hoàn toàn khác, hệ thống sử dụng Rừng ngẫu nhiên (Random Forest). Chúng ta thử xáo trộn hoàn toàn dữ liệu của biến Cha. Nếu sau khi xáo trộn mà mô hình vẫn dự đoán tốt biến Con, chứng tỏ biến Cha đó chẳng có vai trò gì cả. Chỉ những biến nào mà việc xáo trộn nó gây ra một "cú sốc" sụt giảm độ chính xác mới được giữ lại.
+### 3.6.4 Tối ưu hóa DAGMA và Thuật toán ALM
 
-### 3.4.3 Loại Bỏ Liên kết Gián Tiếp (Partial Correlation)
-Thuật toán gạt nhầm nhánh gián tiếp dựa vào **Cây Tăng Cường Tốc độ (HistGradientBoostingRegressor)**:
-- Dự đoán $A$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{A|B} = A - \text{Nonlinear Model}(A, \text{với tập } B)$
-- Dự đoán $C$ bằng tập Nền $B$. Trích xuất phần dư: $\varepsilon_{C|B} = C - \text{Model}(C, \text{với tập } B)$
-- Chạy hệ số Tương quan tuyến tính (Pearson Correlation test) giữa bộ biến đổi $\varepsilon_{A|B}$ và $\varepsilon_{C|B}$.
-- Trả về ngưỡng tham chiếu p-value. Nếu $p > 0.05$, các phần độc lập (Residuals) thể hiện rằng chúng hoàn toàn triệt tiêu khi biết thêm Nền trung gian. Bác bỏ giả thuyết có đường truyền thông tin liên kết riêng $A \to C$. Node C sẽ được tách rời.
+Để đảm bảo mạng nơ-ron không vẽ ra các đường vòng (Cycle), DeepANM áp dụng rào chắn toán học **DAGMA**. Thay vì kiểm soát từng cạnh một cách rời rạc, DAGMA nhìn vào toàn bộ ma trận trọng số $W$ và tính toán một giá trị "hình phạt chu trình" dựa trên định thức ma trận.
 
-Tính ưu việt tuyệt đối của Pha số 3 là khả năng lọc cực đoan (Ultra-pruning) mọi tín nhiệm giả với sự giao thoa kép của Mạng Neural Thần kinh Đại vi phân (Jacobian ATE) và Các Mô hình Cây Phi Tập Trung (Ensembles). Kết cục, đồ thị $W_{bin}$ được chắt lọc chỉ còn chứa những "Xương sống Huyết mạch" thực sự đại diện cho Trật tự tự nhiên vạn vật của tập Dữ liệu, kết thúc chu trình Discover Nhân quả hoành tráng.
+- **Vòng lặp trong (Adam Optimizer):** Cố gắng giảm sai số dự đoán (MSE) và tăng độ khớp của nhiễu.
+- **Vòng lặp ngoài (ALM Controller):** Theo dõi xem đồ thị có vi phạm tính phi chu trình không. Nếu có chu trình xuất hiện, ALM sẽ tăng "hình phạt" lên gấp 10 lần, ép mạng nơ-ron phải cắt bỏ những mắt xích yếu nhất để triệt tiêu vòng lặp.
+
+### 3.6.5 Suy diễn Biến phân và Thành phần KL-Divergence
+
+Trong quá trình học các cụm cơ chế, mô hình VAE của DeepANM sử dụng hàm mất mát **KL-Divergence**. Vai trò của nó là tạo ra một "lực đàn hồi" ngăn cản mô hình quá tin vào một cụm cơ chế duy nhất (Overfitting). KL-Divergence ép các xác suất phân loại cụm phải tản ra đều đặn, chỉ khi dữ liệu thực sự cho thấy sự khác biệt rõ rệt, mô hình mới được phép tách cụm. Điều này giúp đồ thị nhân quả bền vững hơn trước các lỗi nhiễu ngẫu nhiên trong tập huấn luyện.
 
 ---
 
-## 3.5 Tiểu kết
+## 3.7 Pha 3: Hệ thống Lọc Cạnh Double-Gate (Post-Pruning Phase)
 
-Chương 3 của Đồ án đã minh họa cấu trúc chi tiết, nguyên lý phân rã thành luồng (Dataflow) cấp chuyên gia của hệ thống DeepANM. Điểm cốt lõi kỹ thuật mang tính công trình của mô hình nằm ở khả năng khép kín hoàn hảo các nhược điểm của Phương pháp Tối ưu Tĩnh tại 3 điểm cắt (3-Phase Model): Bắt đầu bằng việc thu hẹp Tầm nhìn NP-Hard vô hướng thông qua định lý Bất đối xứng O(N*d) TopoSort Sink-First. Tiếp theo, hệ quy chuẩn mạng Neural VAE-SCM ứng biến Gumbel-Softmax kết hợp Hàm Log-Determinant Tối ưu Kép (ALM) cho phép rẽ nhánh Cơ chế Phi tuyến Phức Tạp. Cuối cùng, cổng Trích Cạnh Thích nghi kép Jacobian-RandomForest loại bỏ sai phạm cạnh nhân quả trực quan cao. Kiến trúc này mang dáng vóc của một công trình Toán-Tin chuẩn Mực dành riêng cho khám phá hệ thống mạng lưới Y sinh hoặc Tài chính có hệ nhiễu cực đại, sẽ được kiểm chứng bằng thực nghiệm đo đạc ở Chương số 4.
+Dù Pha 2 đã tạo ra một đồ thị DAG rất tốt, nhưng do mạng nơ-ron làm việc trong không gian số thực liên tục, ma trận trọng số $W$ thường còn sót lại các giá trị nhỏ (nhiễu nền). Pha 3 đóng vai trò là "bộ lọc tinh" cuối cùng để loại bỏ các mối quan hệ giả (False Positives).
+
+### 3.7.1 Cổng 1: Neural Jacobian ATE (Average Treatment Effect)
+
+Dựa trên lý thuyết can thiệp (Intervention) của Pearl, DeepANM tính toán ma trận độ nhạy Jacobian. Ta thực hiện các can thiệp giả lập: "Nếu ta rung lắc nhẹ giá trị của biến Cha, biến Con sẽ phản ứng bao nhiêu?". Những cạnh có phản ứng quá yếu (độ nhạy thấp) sẽ bị đánh dấu là không có tác động nhân quả thực sự. Điều này giúp loại bỏ những cạnh "toán học" mà không có ý nghĩa vật lý.
+
+### 3.7.2 Cổng 2: Random Forest Permutation Importance
+
+Để tăng tính bền vững, tôi tích hợp thêm một lớp kiểm chứng từ mô hình không phải neural: **Random Forest (Rừng ngẫu nhiên)**.
+Ta thử xáo trộn dữ liệu của từng biến cha. Nếu việc xáo trộn không làm giảm độ chính xác của dự đoán biến con, chứng tỏ mối quan hệ đó chỉ là ngẫu nhiên sinh ra do trùng hợp thống kê. Chỉ những cạnh vượt qua được cả hai "cổng" (Neural ATE và RF Importance) mới được giữ lại. Đây là một cơ chế phòng thủ đa tầng (Defense in depth) để đảm bảo độ tin cậy của đồ thị.
+
+### 3.7.3 Cổng 3: Kiểm định Độc lập Điều kiện (Partial Correlation)
+
+Cuối cùng, hệ thống thực hiện kiểm định độc lập (CI Test) trên các phần dư. Mục tiêu là loại bỏ các đường dẫn gián tiếp. Ví dụ nếu $A \to B \to C$, mô hình có thể lầm tưởng tồn tại cạnh trực tiếp $A \to C$. Cổng CI sẽ kiểm tra: Nếu ta đã biết thông tin về $B$, liệu $A$ có còn giúp dự đoán $C$ tốt hơn không? Nếu không, cạnh $A \to C$ chính thức bị loại bỏ để trả lời đúng về cấu trúc xương sống nhân quả.
+
+---
+
+## 3.8 Triển khai Kỹ thuật và Tối ưu hóa Hiệu năng
+
+### 3.8.1 Tính toán Tensor song song
+
+Tận dụng kiến trúc GPU để tính toán hàng triệu phép biến đổi Fourier cùng lúc. Điều này giúp tối ưu hóa luồng dữ liệu và tăng tốc độ huấn luyện.
+
+### 3.8.2 Lập lịch Nhiệt độ (Temperature Scheduling)
+
+Tham số nhiệt độ $\tau$ của cổng Gumbel được hạ dần, giúp mô hình chuyển dịch mượt mà từ thăm dò sang chốt chặn cấu trúc.
+
+### 3.8.3 Tự động điều chỉnh siêu tham số
+
+Hệ thống có khả năng tự thay đổi hệ số lấn át (penalty coefficient) tùy theo độ phức tạp của đồ thị.
+
+### 3.8.4 Phân tích Độ phức tạp (Complexity Analysis)
+
+Về mặt toán học, độ phức tạp của DeepANM được tối ưu hóa để có khả năng mở rộng (Scalability):
+- **Thời gian (Time Complexity):** Nhờ vào kỹ thuật RFF và tối ưu hóa liên tục, độ phức tạp chỉ xấp xỉ $O(N \cdot d^2)$ với $N$ là số mẫu và $d$ là số biến. So với các phương pháp duyệt đồ thị rời rạc có độ phức tạp $O(2^d)$, DeepANM cho phép xử lý các mạng lưới gen với hàng trăm biến số trên một máy trạm thông dụng.
+- **Không gian (Space Complexity):** Mô hình chủ yếu lưu trữ các ma trận trọng số và RFF features, độ phức tạp $O(d^2 + d \cdot n\_features)$. Điều này đảm bảo DeepANM có thể nằm gọn trong bộ nhớ VRAM của các dòng GPU phổ thông như RTX 3060 hoặc 4060.
+
+## 3.9 Tiểu kết chương
+
+Chương 3 đã phác họa một bức tranh toàn cảnh về "hệ điều hành nhân quả" DeepANM. Điểm cốt lõi không chỉ nằm ở môt thuật toán duy nhất, mà là một quy trình 3 pha bổ trợ lẫn nhau: Pha 1 rào trước đón sau, Pha 2 tấn công trung tâm, và Pha 3 dọn dẹp hậu trường. Sự kết hợp này mang lại cho DeepANM khả năng khám phá nhân quả với độ chính xác và tính bền vững vượt xa các phương pháp truyền thống, hứa hẹn sẽ mang lại những kết quả bất ngờ trong các thử nghiệm thực tế ở chương tiếp theo.
