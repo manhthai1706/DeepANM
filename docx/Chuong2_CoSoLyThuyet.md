@@ -12,13 +12,13 @@ Trong Lý thuyết Đồ thị, một **DAG** được định nghĩa là một 
 - $V = \{X_1, X_2, \dots, X_d\}$ là tập hợp các đỉnh (nodes), đại diện cho các biến / đặc trưng (features) quan sát được.
 - $E \subseteq V \times V$ là tập hợp các cạnh có hướng (directed edges). Một cạnh $X_i \rightarrow X_j$ mang ý nghĩa: Biến $X_i$ là **nguyên nhân trực tiếp** gây ra $X_j$.
 
-Một tính chất cực kỳ quan trọng của DAG là **Không có chu trình (Acyclic)**. Tức là, nếu ta xuất phát từ bất kỳ đỉnh $X_i$ nào, men theo các mũi tên có hướng, ta sẽ *không bao giờ* quay trở lại đúng vị trí của $X_i$. Đặc tả này phù hợp với dòng chảy của Thời gian và Quy luật Nhân quả trong vật lý học: Một sự kiện xảy ra ở tương lai không thể quay lại làm nguyên nhân gây ra một sự kiện ở quá khứ tạo ra nó.
+Một tính chất quan trọng của DAG là **Không có chu trình (Acyclic)**. Tức là, nếu ta xuất phát từ bất kỳ đỉnh $X_i$ nào, men theo các mũi tên có hướng, ta sẽ *không bao giờ* quay trở lại đúng vị trí của $X_i$. Đặc tả này phù hợp với dòng chảy của Thời gian và Quy luật Nhân quả trong vật lý học: Một sự kiện xảy ra ở tương lai không thể quay lại làm nguyên nhân gây ra một sự kiện ở quá khứ tạo ra nó.
 
 Trong mã hóa tính toán, DAG được biểu diễn bằng một ma trận kề (Adjacency Matrix) trọng số $W \in \mathbb{R}^{d \times d}$. 
 - $W_{ij} \neq 0$ tương đương với sự tồn tại của cạnh $X_i \rightarrow X_j$.
 - $W_{ij} = 0$ nghĩa là không tồn tại quan hệ tác động trực tiếp từ $i$ đến $j$.
 
-Tính chất phi chu trình của DAG tạo ra một trở ngại vô cùng lớn đối với Trí tuệ nhân tạo: Không gian của tất cả các đồ thị DAG khả dĩ (DAG Space) trên $d$ đỉnh mở rộng với tốc độ siêu hàm mũ (Super-exponential) quanh mốc $2^{d(d-1)/2}$. Với bài toán 20 biến, số lượng đồ thị khổng lồ đến mức các giải thuật duyệt cạn (Brute-force) là bất khả thi. Điều này khiến Khám phá Nhân quả mặc định là một bài toán **NP-Hard**.
+Tính chất phi chu trình của DAG tạo ra một trở ngại đáng kể đối với Trí tuệ nhân tạo: Không gian của tất cả các đồ thị DAG khả dĩ (DAG Space) trên $d$ đỉnh mở rộng với tốc độ siêu hàm mũ (Super-exponential) quanh mốc $2^{d(d-1)/2}$. Với bài toán 20 biến, số lượng đồ thị khổng lồ đến mức các giải thuật duyệt cạn (Brute-force) là bất khả thi. Điều này khiến Khám phá Nhân quả mặc định là một bài toán **NP-Hard**.
 
 ### 2.1.2 Mô hình Phương trình Cấu trúc (Structural Equation Models - SEM)
 
@@ -80,7 +80,7 @@ Sự thay đổi về tính độc lập phần dư (Residual Dependence) này l
 
 ## 2.3 Tiêu chuẩn Độc lập Thống kê Hilbert-Schmidt (HSIC)
 
-Tiêu chuẩn Độc lập Hilbert-Schmidt (Hilbert-Schmidt Independence Criterion - HSIC) được Gretton (2005) đề xuất là công cụ mạnh mẽ nhất trong Máy học để kiểm tra sự độc lập của hai biến ngẫu nhiên phi tuyến $X$ và $Y$ dù chúng có độ trĩ lệch hay phân phối đa phương thức khổng lồ. 
+Tiêu chuẩn Độc lập Hilbert-Schmidt (Hilbert-Schmidt Independence Criterion - HSIC) được Gretton (2005) đề xuất là công cụ mạnh mẽ trong Máy học để kiểm tra sự độc lập của hai biến ngẫu nhiên phi tuyến $X$ và $Y$ dù chúng có độ trĩ lệch hay phân phối đa phương thức đáng kể. 
 
 ### 2.3.1 Công thức Toán học của HSIC
 
@@ -122,7 +122,7 @@ $$\tilde{HSIC}(X, Y) \approx \frac{1}{n^2} ||\tilde{\Phi}_{X}^T \tilde{\Phi}_{Y}
 
 Làm thế nào để huấn luyện Mạng Neural dò đường ra bộ trọng số kề phi chu trình $W$? Giải thuật di truyền hay tìm kiếm duyệt cạn (A*) đều bất khả thu do không gian NP-Hard.
 
-### 2.4.1 Cuộc cách mạng NOTEARS
+### 2.4.1 Ảnh hưởng của thuật toán NOTEARS
 
 Mọi sự thay đổi bắt nguồn từ công bố của Zheng et al. (2018) tại hội nghị NeurIPS với giải thuật **NOTEARS**. Họ thay thế tìm kiếm rời rạc cấm cạnh bằng một điều kiện Toán học có thể tính đạo hàm:
 **Một đồ thị $W$ là DAG có hướng không chu trình khi và chỉ khi hàm phạt $h(W)$ thỏa mãn:**

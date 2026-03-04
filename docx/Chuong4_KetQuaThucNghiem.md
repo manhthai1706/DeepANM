@@ -81,19 +81,19 @@ Mô hình đã phát hiện thành công các trục nhân quả cốt lõi:
 
 ### 4.2.5 Ảnh hưởng của Tri thức miền (Layer Constraints)
 
-Một ưu điểm vượt trội của DeepANM là khả năng tích hợp linh hoạt các ràng buộc từ chuyên gia (Prior Knowledge) thông qua cơ chế `layer_constraint`. Trong thực nghiệm này, chúng tôi đã áp dụng một hệ thống phân tầng sinh học chi tiết (4 tầng) bao phủ toàn bộ 11 biến:
+Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh hoạt các ràng buộc từ chuyên gia (Prior Knowledge) thông qua cơ chế `layer_constraint`. Trong thực nghiệm này, chúng tôi đã áp dụng một hệ thống phân tầng sinh học chi tiết (4 tầng) bao phủ toàn bộ 11 biến:
 - **Tầng 0 (Root):** PKA, PKC.
 - **Tầng 1 (Upstream):** RAF, PLCG, PIP3.
 - **Tầng 2 (Relay):** MEK, PIP2.
 - **Tầng 3 (Downstream):** ERK, AKT, P38, JNK.
 
-**Kết quả thực nghiệm vượt trội:**
+**Kết quả thực nghiệm khả quan:**
 - **True Positives (TP):** 10 / 16.
 - **Structural Hamming Distance (SHD):** Đạt mức **12** (Cải thiện đáng kể so với SHD 16 khi không dùng tiên nghiệm).
 - **Lỗi đảo ngược (Reversals):** **0** (Hoàn toàn triệt tiêu các lỗi về hướng nhờ cấu trúc phân tầng).
 - **Tính ổn định:** Việc áp dụng ràng buộc đa tầng giúp thu hẹp không gian tìm thấy các cạnh giả (FP giảm từ 12 xuống còn 6).
 
-Điều này chứng minh DeepANM không chỉ hiệu quả trong khám phá mù (blind discovery) mà còn cực kỳ mạnh mẽ khi được "dẫn đường" bởi tri thức chuyên gia, giúp tạo ra các đồ thị nhân quả có độ tin cậy sinh học tuyệt đối.
+Điều này chứng minh DeepANM không chỉ hiệu quả trong khám phá mù (blind discovery) mà còn rất hiệu quả khi được "dẫn đường" bởi tri thức chuyên gia, giúp tạo ra các đồ thị nhân quả có độ tin cậy sinh học cao.
 
 ## 4.3 Nghiên cứu cắt bỏ thành phần (Ablation Study)
 
@@ -166,7 +166,7 @@ graph TD
 
 Thay vì chỉ đưa ra một mũi tên vô hồn, DeepANM cung cấp giá trị **ATE**. Ví dụ, chỉ số ATE của $RM \to MEDV$ cho biết nếu can thiệp làm tăng 1 đơn vị số phòng, giá nhà trung bình sẽ tăng tương ứng bao nhiêu phần nghìn USD. Điều này mang lại giá trị thực tiễn cho các nhà hoạch định chính sách hoặc các chuyên gia phân tích dữ liệu.
 
-## 4.5 Tổng kết chương
+## 4.5 Tiểu kết
 
 Thông qua các thực nghiệm trên, DeepANM đã chứng minh được tính hiệu quả và độ tin cậy của kiến trúc 3 pha:
 - **Pha 1 (TopoSort)** đóng vai trò là "la bàn" định hướng chính xác không gian tìm kiếm, đặc biệt hiệu quả khi có sự hỗ trợ của tri thức miền.

@@ -12,8 +12,8 @@
     *   Tích hợp thành công **HSIC-RFF** và **Random Forest Permutation Importance**, cho phép mô hình phát hiện các quan hệ nhân quả không chỉ dừng lại ở mức độ tuyến tính mà còn bao hàm các tương tác hàm số phức tạp.
     *   Cơ chế **Heterogeneous Noise Model** và **Gumbel-Softmax** giúp mô hình thích nghi tốt với dữ liệu có nhiễu không đồng nhất và sự thay đổi cơ chế (mechanism switching).
 
-3.  **Hiệu năng thực nghiệm ấn tượng:**
-    *   Trên bộ dữ liệu benchmark **Sachs**, mô hình đạt chỉ số **SHD = 12** khi có tri thức miền và SHD = 16 khi khám phá tự do. Đây là kết quả rất khả quan, vượt trội hơn nhiều so với các phương pháp Baseline như OLS hay PC.
+3.  **Hiệu năng thực nghiệm khả quan:**
+    *   Trên bộ dữ liệu benchmark **Sachs**, mô hình đạt chỉ số **SHD = 12** khi có tri thức miền và SHD = 16 khi khám phá tự do. Đây là kết quả khả quan hơn so với nhiều phương pháp Baseline truyền thống như OLS hay PC.
     *   Trên dữ liệu thực tế **Boston Housing**, mô hình chứng minh được tính ứng dụng thực tiễn khi đưa ra các giá trị **ATE (Average Treatment Effect)** có tính diễn giải cao, hỗ trợ đắc lực cho việc phân tích tác động chính sách và kinh tế.
 
 4.  **Tính linh hoạt trong tích hợp tri thức miền:**

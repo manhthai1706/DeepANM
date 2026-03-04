@@ -1,10 +1,10 @@
 # CHƯƠNG 3: KIẾN TRÚC VÀ CƠ CHẾ VẬN HÀNH CỦA MÔ HÌNH DEEPANM
 
-Chương này trình bày một cách hệ thống và chi tiết về cấu trúc kỹ thuật, nền tảng toán học và quy trình thực thi của mô hình **DeepANM (Deep Additive Noise Model)**. Đây là một hệ thống khám phá nhân quả (Causal Discovery) đột phá, được thiết kế để vượt qua những hạn chế của các phương pháp truyền thống trong việc xử lý dữ liệu phi tuyến, nhiễu không đồng nhất (Heterogeneous noise) và sự phức tạp của không gian trạng thái DAG.
+Chương này trình bày một cách hệ thống và chi tiết về cấu trúc kỹ thuật, nền tảng toán học và quy trình thực thi của mô hình **DeepANM (Deep Additive Noise Model)**. Đây là một hệ điều hành khám phá nhân quả (Causal Discovery) hiệu quả, được thiết kế để khắc phục những hạn chế của các phương pháp truyền thống trong việc xử lý dữ liệu phi tuyến, nhiễu không đồng nhất (Heterogeneous noise) và sự phức tạp của không gian trạng thái DAG.
 
 ## 3.1 Triết lý Thiết kế và Kiến trúc Tổng thể
 
-Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng không chu trình (DAG) từ dữ liệu quan sát là một bài khó khăn đặc thù do tính chất **NP-Hard** của không gian tìm kiếm. Khi số lượng biến $d$ tăng lên, số lượng đồ thị khả thi tăng trưởng theo hàm siêu mũ. Để giải quyết vấn đề này, DeepANM không đi theo hướng tìm kiếm heuristic mù quáng mà triển khai một lộ trình **3 Pha Tương hỗ (3-Phase Synergetic Pipeline)**.
+Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng không chu trình (DAG) từ dữ liệu quan sát là một bài khó khăn đặc thù do tính chất **NP-Hard** của không gian tìm kiếm. Khi số lượng biến $d$ tăng lên, số lượng đồ thị khả thi tăng trưởng theo hàm siêu mũ. Để giải quyết vấn đề này, DeepANM triển khai một lộ trình **3 Pha Tương hỗ (3-Phase Synergetic Pipeline)** thay vì chỉ dựa vào các phương pháp heuristic thông thường.
 
 ### 3.1.1 Tư tưởng "Chia để trị" trong Khám phá Nhân quả
 
@@ -78,7 +78,7 @@ Thuật toán này lặp lại quy trình tìm kiếm "biến kết quả" (Sink
 
 ## 3.3 Pha 2: Mô hình hóa lõi Deep Neural SCM (GPPOM-HSIC)
 
-Đây là giai đoạn mô hình thực hiện việc "học" các phương trình cấu trúc (SCM) bằng mạng neural. PHA 2 tích hợp nhiều kỹ thuật học sâu tiên tiến nhất hiện nay.
+Đây là giai đoạn mô hình thực hiện việc "học" các phương trình cấu trúc (SCM) bằng mạng neural. PHA 2 tích hợp nhiều kỹ thuật học sâu hiện đại.
 
 ```mermaid
 graph TD
@@ -220,4 +220,4 @@ Mô hình DeepANM được thiết kế với các đặc tính :
 
 ## 3.6 Tiểu kết chương
 
-Chương 3 đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả mạnh mẽ, sẵn sàng cho các thử thách thực nghiệm tại Chương 4.
+Chương 3 đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả hiệu quả, sẵn sàng cho các thử thách thực nghiệm tại Chương 4.
