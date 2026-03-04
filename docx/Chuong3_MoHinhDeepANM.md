@@ -129,7 +129,7 @@ Với hàng chục ngàn trọng số Param thiết kế, GPPOMC định hướn
 $$ \mathcal{L}_{\text{toàn cục}} = \gamma_1 \mathcal{L}_{\text{Base MSE}} + \gamma_2 \mathcal{L}_{\text{NLL Noise}} + \gamma_3 \mathcal{L}_{\text{L2 Reg}} + KL_z + \Lambda_{\text{DAGMA}}(W)$$
 
 **A. Khối Hàm Lỗi Tiên Tiệm (Base Loss & Likelihood):**
-1. $\mathcal{L}_{\text{Base MSE}} = \frac{1}{N} \sum || X - \hat{\mu_{sem}}(\Theta_{sem}) ||^2_2 $: Hàm căn bản đánh giá chất lượng tái tạo (Reconstruction Error) tương đương với các AutoEncoder. 
+1. $\mathcal{L}_{\text{Base MSE}} = \frac{1}{N} \sum || X - \hat{\mu}_{sem}(\Theta) ||_2^2 $: Hàm căn bản đánh giá chất lượng tái tạo (Reconstruction Error) tương đương với các AutoEncoder. 
 2. $\mathcal{L}_{\text{NLL Noise}} = - \mathbb{E} [ \log P(\varepsilon_j | \sigma_z, \mu_z)]$: Hàm Negative Log-Likelihood (Tối đa hợp lí biên phần dư). Nếu $X$ bị mô hình giải thích theo nhầm cụm cơ chế $Z$, nhiễu sẽ lớn và đẩy NLL lên cao. Tối ưu cực tiểu NLL ép Mạng Deep Learning co cụm phương sai và tìm ra điểm ổn định của GMM Phân mảnh.
 3. KLD (KL-Divergence): Tối ưu độ khác biệt phân phối đồng đều của Biến chọn cụm (hạn chế Node vón cục lười biếng về 1 Cơ chế).
 
@@ -187,7 +187,9 @@ Dự án DeepANM triển khai bộ thiết kế lọc 2 cổng kết hợp **Ada
 
 Đừng để Mạng Neural chỉ học xong, hãy ép nó tính Giải tích hệ quả. Dựa trên toán học Giải tích Can Thiệp Do-Calculus (Judea Pearl), ATE (Tác động điều trị trung bình) được xác định bởi vi phân từng phần xuyên chuỗi đạo hàm (Jacobian):
 Hệ thống cấp Backprop ngược chiều lấy chuỗi phương trình SEM vừa huận luyện xong để đo Đạo hàm cục bộ (Local Gradients) của Output $X_j$ dựa trên Input $X_i$:
+
 $$ \text{ATE}_{ij} = \frac{1}{N} \sum_{k=1}^N \left| \frac{\partial \hat{f}_{\text{SEM, j}}(X^{(k)})}{\partial X_i^{(k)}} \right| $$
+
 Việc tính đạo hàm riêng (Partial Derivative) tiết lộ chính xác 1 sự biến thiên (Wiggle) của biến Cha có năng lực tạo ra bao nhiêu Biên độ Dao động (Amplitude response) cho biến Con trên toàn bộ tệp phân phối thực tế. Nó mang tính biểu đạt (Expressivity) cao hơn hẳn ma trận Trọng số thuần $W_{raw}$.
 DeepANM sẽ loại bỏ các cạnh mà ở đó giá trị ATE Score của nó lọt thỏm dưới Percentile thứ 15 của tập Jacobian mẫu (Threshold trượt động/Dynamic thresholding).
 
@@ -196,11 +198,11 @@ DeepANM sẽ loại bỏ các cạnh mà ở đó giá trị ATE Score của nó
 Để bảo vệ hệ thống khỏi những tương quan hàm phi tuyến không thuần, Random Forest (Rừng ngẫu nhiên - Thuật toán Decision Tree Ensembles vĩ đại của Breiman) được triệu hồi để đo lường tầm quan trọng.
 
 Quy trình Tính R-Squared Permutation được hệ thống code DeepANM thực thể theo các thao tác đâm xuyên (Vertical Shuffle):
-1. Huấn luyện Random Forest Regressor giả lập tái sinh Biến $X_j$ dựa trên tập hợp toàn bộ tổ tiên của nó được đánh dấu bởi Pha 1 (TopoSort Order). Ghi nhận chất lượng độ khớp chuẩn: $R^2_{bình\_thường}$.
+1. Huấn luyện Random Forest Regressor giả lập tái sinh Biến $X_j$ dựa trên tập hợp toàn bộ tổ tiên của nó được đánh dấu bởi Pha 1 (TopoSort Order). Ghi nhận chất lượng độ khớp chuẩn: $R^2_{\text{bình thường}}$.
 2. Xáo trộn cực tả (Shuffle Uniformally) duy nhất cột Feature của ứng viên cha $X_i$ khiến phân phối của nó đối với các quan sát hoàn toàn phá vỡ.
-3. Cho dữ liệu đã xáo trộn này đi vào mô hình RF vừa luyện, thu thập chất lượng tái sinh mới $R^2_{xáo\_trộn}$.
+3. Cho dữ liệu đã xáo trộn này đi vào mô hình RF vừa luyện, thu thập chất lượng tái sinh mới $R^2_{\text{xáo trộn}}$.
 4. Tầm quan trọng của Cạnh $X_i \to X_j$ được minh chứng bằng cú Sốc Mất mát:
-   **Importance Score** = $R^2_{bình\_thường} - R^2_{xáo\_trộn}$
+   **Importance Score** = $R^2_{\text{bình thường}} - R^2_{\text{xáo trộn}}$
 5. Nếu cú sốc không làm thay đổi kết quả Model ($Drop < 0.05$), tác nhân này hoàn toàn là Nhiễu. Cạnh bị băm nát và loại bỏ.
 
 ### 3.4.3 Loại Bỏ Trực tiếp Liên kết Gián Tiếp (Partial Conditional Independence)
