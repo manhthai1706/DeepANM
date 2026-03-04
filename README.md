@@ -233,7 +233,7 @@ tests/test_core.py::test_deepanm_integration      PASSED
 
 [12] Harrison Jr, D., & Rubinfeld, D. L. (1978). Hedonic housing prices and the demand for clean air. *Journal of environmental economics and management*, 5(1), 81-102.
 
-[13] amber0309. (2023). *ANM-MM: Additive Noise Model with Mixture Models*. GitHub repository, Retrieved from https://github.com/amber0309/ANM-MM
+[13] amber0309. (2023). *GPPOM: Gaussian Process partially observable model for causal discovery*. GitHub repository, Retrieved from https://github.com/amber0309/GPPOM
 
 ---
 
