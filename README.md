@@ -2,11 +2,6 @@
 
 # DeepANM: Nonlinear Causal Structure Discovery
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg?style=flat-square)](https://python.org)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c?style=flat-square)](https://pytorch.org)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=flat-square)](https://github.com/manhthai1706/DeepANM/graphs/commit-activity)
-
 **Nonlinear Causal Structure Discovery via Deep Additive Noise Model**
 
 ---
@@ -15,7 +10,7 @@ DeepANM is a comprehensive framework for discovering causal relationships from p
 
 </div>
 
-## 🚀 Key Features
+## Key Features
 
 - **Three-Phase Synergetic Pipeline:** Decouples causal ordering, structure learning, and edge refinement.
 - **Efficient Nonlinear Testing:** Uses HSIC with Random Fourier Features (RFF) for $O(N \cdot D)$ complexity.
@@ -25,7 +20,7 @@ DeepANM is a comprehensive framework for discovering causal relationships from p
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 DeepANM operates through a systematic three-phase process:
 
@@ -35,7 +30,7 @@ DeepANM operates through a systematic three-phase process:
 
 ---
 
-## 💻 Installation
+## Installation
 
 ```bash
 # Clone the repository
@@ -50,7 +45,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🛠️ Usage
+## Usage
 
 ### Quick Discovery
 ```python
@@ -79,7 +74,7 @@ python examples/ablation_study.py  # Component-wise performance analysis
 
 ---
 
-## 📊 Experimental Results
+## Experimental Results
 
 ### Sachs Dataset (Biological Benchmark)
 | Method | SHD | F1-Score | Note |
@@ -100,7 +95,7 @@ Incremental performance gain on the Sachs dataset:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 DeepANM/
@@ -115,7 +110,7 @@ DeepANM/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 Ensuring reliability through comprehensive unit tests:
 ```bash
@@ -124,7 +119,7 @@ pytest tests/ -v
 
 ---
 
-## 📚 References
+## References
 
 [1] Hoyer, P. O., Janzing, D., Mooij, J. M., Peters, J., & Schölkopf, B. (2009). Nonlinear causal discovery with additive noise models. *Advances in neural information processing systems*, 21.
 
@@ -166,7 +161,7 @@ pytest tests/ -v
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
