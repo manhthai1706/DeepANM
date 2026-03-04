@@ -25,7 +25,9 @@ Tính chất phi chu trình của DAG tạo ra một trở ngại vô cùng lớ
 Đồ thị DAG chỉ cho ta biết **ai là nguyên nhân của ai**, nhưng không cho biết **cách thức mà nguyên nhân tạo ra kết quả**. Mô hình SEM lấp đầy khoảng trống đó bằng cách định nghĩa các quan hệ dưới dạng các hàm số cơ học.
 
 Giả sử $PA(X_j)$ là tập hợp tất cả các cha (nguyên nhân trực tiếp) của $X_j$ trong đồ thị DAG $\mathcal{G}$. Hệ thống SEM mô tả mỗi biến $X_j$ được sinh ra như sau:
+
 $$X_j := f_j(PA(X_j), \varepsilon_j) \quad \text{for } j = 1, 2, \dots, d$$
+
 Trong đó:
 - $f_j$ là một hàm phi tuyến hoán đổi (cơ chế nhân quả / Causal Mechanism) không nhất thiết xác định trước.
 - $\varepsilon_j$ là biến nhiễu ngoại sinh (Exogenous noise) hoặc những yếu tố ngẫu nhiên từ môi trường không đo lường được tác động trực tiếp lên $X_j$.
@@ -41,6 +43,7 @@ Nhà khoa học dữ liệu Judea Pearl (Đạt giải Turing 2011) đã đưa r
 2. **Rung 2 - Can thiệp hành động (Doing / Intervening):** Ký hiệu bằng toán tử $do(\cdot)$. Tính kỳ vọng $\mathbb{E}[Y | do(X = x)]$. "Nếu ta ép biểu giá điện tăng gấp 3, liệu thời tiết có trở nên nóng lên không?". 
 
 Xác suất điều kiện thống kê khác biệt hoàn toàn với phân phối can thiệp. Việc thay đổi $do(X = x)$ cắt đứt hoàn toàn $X$ khỏi các nguyên nhân gốc của nó trong mô hình DAG (Mutilated Graph), khiến ta có thể đo lường Tác động Nhân quả Trung bình (Average Treatment Effect - ATE) như sau:
+
 $$ATE = \mathbb{E}[Y | do(X = x + 1)] - \mathbb{E}[Y | do(X = x)]$$
 
 Việc tính toán được ATE từ một hệ thống SEM học được bằng Mạng Neural là chìa khóa để phân định sức mạnh (Causal magnitude) của các trọng số cạnh học được, làm rào chắn cuối cùng loại bỏ nhiễu.
@@ -54,7 +57,9 @@ Bên cạnh khai thác hướng nhân quả dựa vào can thiệp hoặc thứ 
 ### 2.2.1 Khái niệm Nhiễu Cộng Phi tuyến (Nonlinear ANM)
 
 ANM giới hạn dạng của phương trình cấu trúc (SEM) thành dạng cộng, sao cho tác động của các biến nguyên nhân và nhiễu ngẫu nhiên là độc lập cộng tuyến với nhau:
+
 $$X_j := f_j(PA(X_j)) + \varepsilon_j \quad (\text{hoặc mở rộng ra PNL: } X_j := g_j(f_j(PA(X_j)) + \varepsilon_j))$$
+
 Mấu chốt của ANM yêu cầu hai giả định mạnh:
 1. Hàm $f_j$ là phi tuyến (Nonlinear).
 2. Nhiễu $\varepsilon_j$ độc lập thống kê với các nguyên nhân $PA(X_j)$, tức $\varepsilon_j \perp\!\!\!\perp PA(X_j)$.
@@ -84,11 +89,13 @@ Tiêu chuẩn Độc lập Hilbert-Schmidt (Hilbert-Schmidt Independence Criteri
 Thay vì phải nội suy mật độ (Density Estimation) vốn là bài toán nan giải, HSIC chiếu dữ liệu $X$ vào không gian Hilbert vô hạn chiều $\mathcal{F}$ thông qua hàm ánh xạ đặc trưng $\phi(x)$, và $Y$ vào không gian $\mathcal{G}$ qua $\psi(y)$. Tác giả dùng chuẩn Frobenius bình phương đối với toán tử cross-covariance:
 
 Giá trị HSIC thực nghiệm (Empirical HSIC) được tính toán thông qua ma trận Kernel của X và Y:
-$$HSIC(\mathbf{X}, \mathbf{Y}) = \frac{1}{(n-1)^2} \text{Tr}(\mathbf{K}_X \mathbf{H} \mathbf{K}_Y \mathbf{H})$$
+
+$$HSIC(X, Y) = \frac{1}{(n-1)^2} \text{Tr}(K_X H K_Y H)$$
+
 Trong đó:
-- $\mathbf{X}, \mathbf{Y}$ là dữ liệu mẫu gồm $n$ điểm dữ liệu.
-- $\mathbf{K}_X, \mathbf{K}_Y \in \mathbb{R}^{n \times n}$ là Ma trận Kernel (thường là Gaussian RBF: $k(x, x') = \exp(-\frac{||x-x'||^2}{2\sigma^2})$).
-- $\mathbf{H} = \mathbf{I}_n - \frac{1}{n} \mathbf{1}_{n \times n}$ là ma trận chuẩn hóa tâm (Centering matrix).
+- $X, Y$ là dữ liệu mẫu gồm $n$ điểm dữ liệu.
+- $K_X, K_Y \in \mathbb{R}^{n \times n}$ là Ma trận Kernel (thường là Gaussian RBF: $k(x, x') = \exp(-\frac{||x-x'||^2}{2\sigma^2})$).
+- $H = I_n - \frac{1}{n} J_{n \times n}$ là ma trận chuẩn hóa tâm (Centering matrix, với $J$ là ma trận toàn số 1).
 
 Nếu $HSIC(X, Y) \approx 0$, hai biến hoàn toàn độc lập. Càng lớn hơn $0$, mức độ phụ thuộc phi tuyến càng mạnh. Hàm Loss này thường xuyên được cho vào Mạng Neural để "ép" mạng phải tìm ra khoảng không ẩn độc lập tối đa.
 
@@ -99,11 +106,14 @@ Tính toán ma trận $n \times n$ cho $\mathbf{K}_X$ tiêu tốn dung lượng 
 Dựa trên Định lý Bochner, Kernel tịnh tiến RBF có thể được xấp xỉ bằng giá trị kỳ vọng của các phép chiếu sin/cos ngẫu nhiên kết hợp phân phối Gaussian (Rahimi & Recht, 2007). Thay vì chiếu đồ thị vô hạn chiều (Kernel Trick), ta rút thẳng giá trị Fourier Hữu hạn Chiều Explicit $D$:
 
 $$\phi_{\text{RFF}}(x) = \sqrt{\frac{2}{D}} \cos(X \Omega + b)$$
+
 - $\Omega \in \mathbb{R}^{d_x \times D}$ được lấy mẫu từ $\mathcal{N}(0, 1/\sigma^2)$.
 - $b \in \mathbb{R}^{D}$ là bias lấy mẫu đều từ $[0, 2\pi]$.
 
 Lúc này, HSIC được tính như bình phương của độ dài vector Cross-Covariance trong không gian tuyến tính $D$-chiều (với $D$ thường nhỏ, cỡ $64$ đến $128$):
+
 $$\tilde{HSIC}(X, Y) \approx \frac{1}{n^2} ||\tilde{\Phi}_{X}^T \tilde{\Phi}_{Y}||^2_F$$
+
 Áp dụng **FastHSIC (RFF-HSIC)** cho phép thời gian tính độ Độc lập rơi xuống $O(N \cdot D)$, giải phóng giới hạn cho việc tìm kiếm thuật toán Sắp xếp Topological khổng lồ phía trước mạng Neural.
 
 ---
@@ -116,6 +126,7 @@ Làm thế nào để huấn luyện Mạng Neural dò đường ra bộ trọng
 
 Mọi sự thay đổi bắt nguồn từ công bố của Zheng et al. (2018) tại hội nghị NeurIPS với giải thuật **NOTEARS**. Họ thay thế tìm kiếm rời rạc cấm cạnh bằng một điều kiện Toán học có thể tính đạo hàm:
 **Một đồ thị $W$ là DAG có hướng không chu trình khi và chỉ khi hàm phạt $h(W)$ thỏa mãn:**
+
 $$h_{NOTEARS}(W) = \text{Tr}(e^{W \circ W}) - d = 0$$
 
 Phép toán lũy thừa ma trận (matrix exponential) đếm chính xác tổng số vòng lặp có chiều dài $1, 2, ..., \infty$ trên đồ thị. Khi $Trace(e^{W \circ W})$ có giá trị bằng chính số chiều $d$, tức là ta có đúng $d$ đường kính độ dài 0 (self-loop mặc định) và không có đường kính lớn hơn 0 nào đâm ngược về node cũ (Không có cycle). 
@@ -126,11 +137,15 @@ Công trình này chuyển Khám phá nhân quả thành một bài toán **Tố
 
 Tuy nhiên NOTEARS còn cồng kềnh với hàm $e^A$ tạo Gradient nổ. Năm 2022, Bello et al. xuất bản cải tiến Log-Determinant Barrier gọi là **DAGMA**:
 Khẳng định $W$ là DAG khi và chi khi:
+
 $$h_{DAGMA}(W) = -\ln \det(sI - W \circ W) + d \ln s = 0$$
+
 Với tham số $s$ kiểm soát bán kính phủ.
 
 Hệ thống hàm $h(W)$ liên tục của DAGMA được kiểm soát bằng giải thuật Augmented Lagrangian Method (ALM) theo công thức kinh điển:
+
 $$\min_{\Theta} \mathcal{L}_{Neural}(X; \Theta) + \alpha h(W(\Theta)) + \frac{\rho}{2} h(W(\Theta))^2$$
+
 Cập nhật nhân quả kép tăng $\rho$ vô hạn dần theo chu kỳ Epochs, dẫn đến các cạnh sai trái (ngược chu trình) dần bị Mạng neural cắt bỏ tự động thành số $0$ trên không gian tối ưu.
 
 ---
@@ -143,7 +158,8 @@ Mạng Neural rất dễ rơi vào Tối ưu cực tiểu cục bộ (Local Mini
 
 LASSO (Least Absolute Shrinkage and Selection Operator) bổ sung hàm Penalty cấp $L_1$ vào tác vụ hồi quy để triệt tiêu các hệ số kém quan trọng về $0$.
 Nhưng LASSO rất tệ ở việc lọc cạnh có tỷ lệ đa cộng tuyến (Multicollinearity). Thuật toán **Adaptive LASSO (Zou, 2006)** đưa ra giải pháp cân bằng bằng cách trừng phạt các biến phụ thuộc dựa trên nghịch đảo độ quan trọng sơ khởi thông qua ma trận $\beta_{\text{init}}$:
-$$ \arg\min_{\beta} \left( ||y - X\beta||^2_2 + \lambda \sum_j \frac{1}{|\hat{\beta}_{init, j}|^\gamma} |\beta_j| \right) $$
+
+$$ \arg\min_{\beta} \left( ||y - X\beta||^2_2 + \lambda \sum_j \frac{1}{|\hat{\beta}_{\text{init}, j}|^\gamma} |\beta_j| \right) $$
 
 ### 2.5.2 Phân tích tầm quan trọng bằng Random Forest (Permutation Importance)
 
@@ -154,7 +170,9 @@ Thuật toán đi hoán vị lộn xộn dọc (Shuffling vertically) một cộ
 
 Mạng Neural có xu hướng báo "False Positive" tại các đường dẫn gián tiếp. Ví dụ Khói bụi $X_1 \to$ Bệnh Phổi $X_2 \to$ Ho kinh niên $X_3$. Việc liên tục thấy Khói bụi làm người ta tự động kết luận $X_1 \to X_3$.
 Kỹ thuật **Conditional Independence CI** được diễn giải đơn giản:
+
 $$X_1 \perp\!\!\!\perp X_3 \,|\, X_2$$
+
 Nghĩa là, cho dù Khói Bụi có dày đặc thế nào ($X_1$), nhưng nếu bệnh nhân Đã Khám và Xác nhận Không mắc Bệnh Phổi ($X_2 = \text{False}$), thì tỷ lệ Ho kinh niên $X_3$ hoàn toàn không bị thay đổi.
 Bằng việc mô hình hóa các biến số phi tuyến bằng Histogram-based Gradient Boosting và dùng hệ số Correlation Test Pearson lên phần dư, ta dễ dàng bác bỏ cạnh thừa $X_1 \to X_3$, chỉ giữ lại quan hệ cha-con tinh khiết.
 
