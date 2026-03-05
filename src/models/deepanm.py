@@ -170,7 +170,7 @@ class DeepANM(nn.Module):
         return self.history
 
     def fit_bootstrap(self, X, n_bootstraps=5,
-                      epochs=200, batch_size=64, lr=5e-3, verbose=True,
+                      epochs=50, batch_size=128, lr=5e-3, verbose=True,
                       apply_quantile=False, apply_isolation=False, discovery_mode="fast",
                       layer_constraint=None, use_rf=True, use_ci_pruning=True, use_scm_filter=True):
         """
