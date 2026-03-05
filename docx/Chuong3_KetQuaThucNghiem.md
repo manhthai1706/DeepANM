@@ -80,21 +80,7 @@ Mô hình đã phát hiện thành công các trục nhân quả cốt lõi:
 - **Cơ chế truyền tin:** Phát hiện thành công $PIP3 \to PLCG$, một trong những cạnh khó tìm nhất trong các nghiên cứu trước đây.
 - **Các cạnh đảo ngược (Reversals):** Mô hình gặp 2 lỗi đảo ngược hướng cạnh, thường do tính chất đối xứng của dữ liệu tại các nút trung gian.
 
-### 3.2.4 Ảnh hưởng của Tri thức miền (Layer Constraints)
-
-Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh hoạt các ràng buộc từ chuyên gia (Prior Knowledge) thông qua cơ chế `layer_constraint`. Trong thực nghiệm này, chúng tôi đã áp dụng một hệ thống phân tầng sinh học chi tiết (4 tầng) bao phủ toàn bộ 11 biến:
-- **Tầng 0 (Root):** PKA, PKC.
-- **Tầng 1 (Upstream):** RAF, PLCG, PIP3.
-- **Tầng 2 (Relay):** MEK, PIP2.
-- **Tầng 3 (Downstream):** ERK, AKT, P38, JNK.
-
-**Kết quả thực nghiệm khả quan:**
-- **True Positives (TP):** 10 / 16.
-- **Structural Hamming Distance (SHD):** Đạt mức **12** (Cải thiện đáng kể so với SHD 16 khi không dùng tiên nghiệm).
-- **Lỗi đảo ngược (Reversals):** **0** (Hoàn toàn triệt tiêu các lỗi về hướng nhờ cấu trúc phân tầng).
-- **Tính ổn định:** Việc áp dụng ràng buộc đa tầng giúp thu hẹp không gian tìm thấy các cạnh giả (FP giảm từ 12 xuống còn 6).
-
-### 3.2.5 Đối chiếu với một số phương pháp phổ biến
+### 3.2.4 Đối chiếu với một số phương pháp phổ biến
 
 Để có cái nhìn đa chiều về kết quả thực nghiệm, chúng tôi liệt kê chỉ số SHD của DeepANM bên cạnh các giá trị được công bố của một số thuật toán khám phá nhân quả trên cùng tập dữ liệu Sachs (dựa trên thống kê từ nghiên cứu GraN-DAG, 2019 và các báo cáo liên quan).
 
@@ -111,12 +97,11 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 | **NOTEARS-MLP (2020)** | 16 | Mở rộng phi tuyến của thuật toán NOTEARS |
 | **CAM (2014)** | 12 | Mô hình ANM phi tuyến dựa trên tính điểm |
 | **GraN-DAG (2019)** | 13 | Sử dụng mạng neural và cơ chế lọc gradient |
-| **DeepANM** (Không dùng tiên nghiệm) | 16 | Kết quả thực nghiệm tại Pha 3 |
-| **DeepANM** (Có dùng phân tầng) | **12** | **Kết quả khi tích hợp ràng buộc 4 tầng** |
+| **DeepANM** | 16 | Kết quả thực nghiệm tại Pha 3 |
 
 </div>
 
-Dựa trên bảng đối chiếu, có thể thấy khi không sử dụng thông tin tiên nghiệm, kết quả của DeepANM nằm trong khoảng tương đồng với phương pháp NOTEARS-MLP. Khi được bổ sung các ràng buộc phân tầng (Layer Constraints), chỉ số SHD đạt mức 12, tương đương với thuật toán CAM và thấp hơn một ít so với GraN-DAG. Kết quả này cho thấy khả năng thu hẹp sai số cấu trúc của mô hình khi được hỗ trợ bởi các tri thức miền phù hợp trên dữ liệu sinh học.
+Dựa trên bảng đối chiếu, có thể thấy kết quả của mô hình đề xuất DeepANM (SHD=16) nằm trong nhóm có hiệu năng tương đối tốt, đạt mức tương đương với phương pháp NOTEARS-MLP. So với các phương pháp dựa trên giả định tuyến tính truyền thống (như PC hay GES), mô hình bước đầu cho thấy khả năng cải thiện và làm giảm sai lệch trong việc nhận diện cấu trúc đồ thị nhân quả.
 
 Cách tiếp cận này giúp ổn định hướng cạnh và phát huy hiệu quả của kiến trúc đa giai đoạn trong việc xử lý các quan hệ nhân quả phức tạp.
 
@@ -191,7 +176,7 @@ Thay vì chỉ đưa ra một mũi tên vô hồn, DeepANM cung cấp giá trị
 ## 3.5 Tiểu kết
 
 Thông qua các thực nghiệm trên, DeepANM đã chứng minh được tính hiệu quả và độ tin cậy của kiến trúc 3 pha:
-- **Pha 1 (TopoSort)** đóng vai trò là "la bàn" định hướng chính xác không gian tìm kiếm, đặc biệt hiệu quả khi có sự hỗ trợ của tri thức miền.
+- **Pha 1 (TopoSort)** đóng vai trò là "la bàn" định hướng chính xác không gian tìm kiếm, đảm bảo tính hợp lý của các liên kết nhân quả.
 - **Pha 2 (Neural SCM)** học được các hàm phi tuyến phức tạp và cơ chế nhiễu hỗn hợp, điều mà các phương pháp truyền thống như PC hay LiNGAM thường bỏ sót.
 - **Pha 3 (Refining)** với cơ chế Double-Gate giúp tinh lọc đồ thị, đưa SHD về mức tối ưu và đảm bảo tính thực tiễn thông qua các chỉ số ATE có ý nghĩa kinh tế - xã hội.
 

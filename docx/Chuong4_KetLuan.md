@@ -13,11 +13,9 @@
     *   Cơ chế **Heterogeneous Noise Model** và **Gumbel-Softmax** giúp mô hình thích nghi tốt với dữ liệu có nhiễu không đồng nhất và sự thay đổi cơ chế (mechanism switching).
 
 3.  **Hiệu năng thực nghiệm khả quan:**
-    *   Trên bộ dữ liệu benchmark **Sachs**, mô hình đạt chỉ số **SHD = 12** khi có tri thức miền và SHD = 16 khi khám phá tự do. Đây là kết quả khả quan hơn so với nhiều phương pháp Baseline truyền thống như OLS hay PC.
+    *   Trên bộ dữ liệu benchmark **Sachs**, mô hình đạt chỉ số **SHD = 16**. Kết quả này cho thấy mô hình có thể hoạt động ổn định và đem lại hiệu năng tương đối tốt khi đối chiếu với một số phương pháp Baseline truyền thống như OLS hay PC.
     *   Trên dữ liệu thực tế **Boston Housing**, mô hình chứng minh được tính ứng dụng thực tiễn khi đưa ra các giá trị **ATE (Average Treatment Effect)** có tính diễn giải cao, hỗ trợ đắc lực cho việc phân tích tác động chính sách và kinh tế.
 
-4.  **Tính linh hoạt trong tích hợp tri thức miền:**
-    *   Cơ chế **Layer Constraint** cho phép mô hình kết hợp hài hòa giữa sức mạnh tính toán của AI và sự hiểu biết của chuyên gia, giúp triệt tiêu hoàn toàn các lỗi đảo ngược hướng cạnh (reversals), tăng độ tin cậy của đồ thị nhân quả cuối cùng.
 
 ## 4.2 Hạn chế của mô hình DeepANM
 
