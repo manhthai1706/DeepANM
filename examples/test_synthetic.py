@@ -54,11 +54,11 @@ def main():
     
     # Run DeepANM
     print("\nRunning DeepANM (discovery_mode='fast', hidden=32)...")
-    model = DeepANM(n_clusters=2, hidden_dim=32, lda=0.0)
+    model = DeepANM(n_clusters=1, hidden_dim=32, lda=0.0)
     start = time.time()
     
     prob_matrix, avg_W = model.fit_bootstrap(
-        data, n_bootstraps=10, apply_quantile=True,
+        data, n_bootstraps=1, apply_quantile=True,
         discovery_mode='fast', layer_constraint=None, verbose=True
     )
     
