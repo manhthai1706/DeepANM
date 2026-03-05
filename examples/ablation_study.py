@@ -11,6 +11,7 @@ import os, sys
 import pandas as pd
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.models.deepanm import DeepANM
@@ -110,12 +111,12 @@ def main():
         print(f"  {cfg['desc']}")
         print(f"{'='*70}")
         
-        model = DeepANM(n_clusters=1, hidden_dim=32, lda=0.0)
+        model = DeepANM()
         start = time.time()
         
         prob_matrix, avg_W = model.fit_bootstrap(
             df, n_bootstraps=1, apply_quantile=True,
-            discovery_mode='fast', layer_constraint=None, verbose=False,
+            discovery_mode='fast', verbose=False,
             use_rf=cfg['use_rf'], use_ci_pruning=cfg['use_ci_pruning'],
             use_scm_filter=cfg['use_scm_filter']
         )
@@ -143,6 +144,51 @@ def main():
         print(f"{r['Config']:<30s} {r['TP']:>3d} {r['FP']:>3d} {r['SHD']:>4d} {r['Accuracy']:>5.1%} {r['Precision']:>5.1%} {r['Recall']:>5.1%} {r['F1']:>5.1%} {r['NHD']:>5.1%} {r['Time']:>5.0f}s")
     
     print(f"\n  Ground Truth: {len(gt_edges)} edges | Total possible: {n_vars*(n_vars-1)} directed edges")
+
+    # ----- Visualization -----
+    print("\nGenerating SHD comparison visualization...")
+    os.makedirs('results', exist_ok=True)
+    
+    levels = [r['Config'].split(':')[0] for r in results]
+    shd_scores = [r['SHD'] for r in results]
+    f1_scores = [r['F1'] * 100 for r in results] # in percentage
+    
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    
+    # Bar plot for SHD (lower is better, primary axis)
+    color = 'tab:red'
+    ax1.set_xlabel('Ablation Levels', fontweight='bold')
+    ax1.set_ylabel('Structural Hamming Distance (SHD)', color=color, fontweight='bold')
+    bars = ax1.bar(levels, shd_scores, color=color, alpha=0.7, width=0.4, label='SHD (Lower is better)')
+    ax1.tick_params(axis='y', labelcolor=color)
+    
+    # Add values on top of bars
+    for bar in bars:
+        yval = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2, yval + 0.5, int(yval), ha='center', va='bottom', fontweight='bold', color=color)
+        
+    # Line plot for F1 (higher is better, secondary axis)
+    ax2 = ax1.twinx()  
+    color = 'tab:blue'
+    ax2.set_ylabel('F1 Score (%)', color=color, fontweight='bold')
+    line = ax2.plot(levels, f1_scores, color=color, marker='o', linestyle='-', linewidth=2, markersize=8, label='F1 Score (Higher is better)')
+    ax2.tick_params(axis='y', labelcolor=color)
+    
+    # Add values next to points
+    for i, txt in enumerate(f1_scores):
+        ax2.annotate(f"{txt:.1f}%", (levels[i], f1_scores[i] + 1), ha='center', fontweight='bold', color=color)
+        
+    plt.title('Ablation Study: Component Contributions to DeepANM Model Performance', fontweight='bold', fontsize=14)
+    
+    # Combine legends
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines + lines2, labels + labels2, loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
+    
+    plt.tight_layout()
+    save_path = "results/ablation_study_comparison.png"
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"Saved SHD vs F1 comparison plot to: {save_path}")
 
 if __name__ == '__main__':
     main()
