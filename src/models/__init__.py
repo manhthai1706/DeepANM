@@ -5,7 +5,6 @@ Contains high-level models and training utilities
 
 from .deepanm import DeepANM
 from .fast_baseline import FastANM
-from .lite_baseline import LiteANM
 from src.core.mlp import MLP
 from src.utils.trainer import DeepANMTrainer
 
@@ -19,6 +18,5 @@ __all__ = [
     'MLP',
     'DeepANMTrainer',
     'CausalFlowTrainer',
-    'FastANM',
-    'LiteANM'
+    'FastANM'
 ]

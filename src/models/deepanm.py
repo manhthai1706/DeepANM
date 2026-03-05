@@ -5,11 +5,17 @@ Integrated Three-Phase Pipeline:
   - Phase 2: Graph Selection (Non-linear LASSO)
   - Phase 3: Neural Fitting (Mechanism Learning & ATE Estimation)
 
+Default configuration uses lean/lite settings (n_clusters=1, hidden_dim=16)
+for optimal speed-accuracy tradeoff on real-world datasets.
+
 DeepANM: Mô hình Nhiễu Cộng Sâu cho Khám phá Nhân quả.
 Pipeline Tích hợp Ba Pha:
   - Pha 1: Sắp xếp Topo (Xác định thứ tự nhân quả)
   - Pha 2: Chọn Đồ thị (LASSO phi tuyến)
   - Pha 3: Khớp Neural (Học cơ chế & Ước tính ATE)
+
+Cấu hình mặc định dùng thông số tinh gọn (n_clusters=1, hidden_dim=16)
+để đạt cân bằng tối ưu giữa tốc độ và độ chính xác.
 """
 
 import numpy as np
@@ -55,7 +61,7 @@ class DeepANM(nn.Module):
     - 'alm'  : Pure deep learning exploration via Augmented Lagrangian. / Khám phá thuần học sâu qua Lagrangian Tăng cường.
     """
 
-    def __init__(self, x_dim=None, n_clusters=2, hidden_dim=32, lda=1.0, device=None):
+    def __init__(self, x_dim=None, n_clusters=1, hidden_dim=16, lda=0.5, device=None):
         """Initialize hyperparameters and internal components. / Khởi tạo siêu tham số và các thành phần nội bộ."""
         super().__init__()
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -121,7 +127,7 @@ class DeepANM(nn.Module):
     # High-level API / Giao diện người dùng
     # ------------------------------------------------------------------
 
-    def fit(self, X, epochs=200, batch_size=64, lr=2e-3, verbose=True,
+    def fit(self, X, epochs=50, batch_size=128, lr=5e-3, verbose=True,
             apply_quantile=False, apply_isolation=False,
             discovery_mode="fast", layer_constraint=None, _precomputed_order=None,
             use_rf=True, use_ci_pruning=True):
