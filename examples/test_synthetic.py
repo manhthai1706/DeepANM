@@ -53,16 +53,16 @@ def main():
     print(f"Ground Truth edges: {len(gt_edges)}")
     
     # Run DeepANM
-    print("\nRunning DeepANM (discovery_mode='fast', hidden=32)...")
-    model = DeepANM(n_clusters=1, hidden_dim=32, lda=0.0)
+    print("\nRunning DeepANM (discovery_mode='fast', lean defaults)...")
+    model = DeepANM()  # Uses lean defaults: n_clusters=1, hidden_dim=16, lda=0.5
     start = time.time()
     
     prob_matrix, avg_W = model.fit_bootstrap(
-        data, n_bootstraps=1, apply_quantile=True,
+        data, n_bootstraps=3, apply_quantile=True,
         discovery_mode='fast', layer_constraint=None, verbose=True
     )
     
-    W = (prob_matrix > 0).astype(int)
+    W = (prob_matrix >= 0.5).astype(int)
     elapsed = time.time() - start
     
     print(f"\nTime taken: {elapsed:.2f} seconds")

@@ -49,16 +49,16 @@ def main():
         print(f"  {col:>8s} : {desc}")
     
     # Run DeepANM (Fast mode, no prior knowledge)
-    print("\nRunning DeepANM (discovery_mode='fast', hidden=32)...")
-    model = DeepANM(n_clusters=1, hidden_dim=32, lda=0.0)
+    print("\nRunning DeepANM (discovery_mode='fast', 3 Bootstraps)...")
+    model = DeepANM()  # Uses lean defaults: n_clusters=1, hidden_dim=16, lda=0.5
     start = time.time()
     
     prob_matrix, avg_W = model.fit_bootstrap(
-        df.values, n_bootstraps=1, apply_quantile=True,
+        df.values, n_bootstraps=3, apply_quantile=True,
         discovery_mode='fast', layer_constraint=None, verbose=True
     )
     
-    W = (prob_matrix > 0).astype(int)
+    W = (prob_matrix >= 0.6).astype(int)
     elapsed = time.time() - start
     
     n_edges = int(W.sum())

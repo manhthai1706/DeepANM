@@ -33,15 +33,15 @@ def main():
     
     print(f"Applying Deep 4-Layer Constraints: {len(layer_constraint)} variables mapped.")
 
-    model = DeepANM(n_clusters=1, hidden_dim=32, lda=0.0)
+    model = DeepANM()  # Uses lean defaults: n_clusters=1, hidden_dim=16, lda=0.5
     start = time.time()
     
-    prob_matrix, avg_W = model.fit_bootstrap(df, n_bootstraps=1, apply_quantile=True, 
+    prob_matrix, avg_W = model.fit_bootstrap(df, n_bootstraps=5, apply_quantile=True, 
                                              discovery_mode='fast', 
                                              layer_constraint=layer_constraint, 
                                              verbose=True)
     
-    W = (prob_matrix > 0).astype(int)
+    W = (prob_matrix >= 0.5).astype(int)
     end = time.time()
     
     # Ground Truth
