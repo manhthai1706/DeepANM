@@ -1,6 +1,6 @@
-# CHƯƠNG 5: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
+# CHƯƠNG 4: KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
 
-## 5.1 Kết luận những kết quả đạt được
+## 4.1 Kết luận những kết quả đạt được
 
 Đồ tài nghiên cứu này đã xây dựng thành công và thực nghiệm mô hình **DeepANM**, một phương pháp tiếp cận mới trong việc khám phá cấu trúc nhân quả phi tuyến dựa trên nền tảng mạng neural sâu và các kiểm định thống kê hiện đại. Trải qua quá trình từ nghiên cứu lý thuyết đến triển khai mã nguồn và đánh giá thực nghiệm, đề tài đã đạt được các kết quả trọng tâm sau:
 
@@ -19,7 +19,7 @@
 4.  **Tính linh hoạt trong tích hợp tri thức miền:**
     *   Cơ chế **Layer Constraint** cho phép mô hình kết hợp hài hòa giữa sức mạnh tính toán của AI và sự hiểu biết của chuyên gia, giúp triệt tiêu hoàn toàn các lỗi đảo ngược hướng cạnh (reversals), tăng độ tin cậy của đồ thị nhân quả cuối cùng.
 
-## 5.2 Hạn chế của mô hình DeepANM
+## 4.2 Hạn chế của mô hình DeepANM
 
 Mặc dù đạt được nhiều kết quả tích cực, mô hình vẫn tồn tại một số hạn chế cần được xem xét:
 
@@ -27,7 +27,7 @@ Mặc dù đạt được nhiều kết quả tích cực, mô hình vẫn tồn
 2.  **Thời gian tính toán:** Việc huấn luyện mô hình (đặc biệt là bước Bootstrapping để lựa chọn ổn định) tiêu tốn nhiều tài nguyên CPU/GPU và thời gian hơn so với các thuật toán tham lam truyền thống.
 3.  **Bài toán biến ẩn (Unobserved Confounders):** Giống như hầu hết các mô hình ANM hiện nay, DeepANM hoạt động tốt nhất dưới giả định không có biến ẩn gây nhiễu. Trong thực tế, sự tồn tại của các biến không quan sát được có thể làm sai lệch kết quả ATE.
 
-## 5.3 Hướng phát triển trong tương lai
+## 4.3 Hướng phát triển trong tương lai
 
 Dựa trên những kết quả và hạn chế đã nêu, nghiên cứu có thể được mở rộng theo các hướng sau:
 

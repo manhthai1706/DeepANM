@@ -1,8 +1,8 @@
-# CHƯƠNG 3: KIẾN TRÚC VÀ CƠ CHẾ VẬN HÀNH CỦA MÔ HÌNH DEEPANM
+# CHƯƠNG 2: KIẾN TRÚC VÀ CƠ CHẾ VẬN HÀNH CỦA MÔ HÌNH DEEPANM
 
 Chương này trình bày một cách hệ thống và chi tiết về cấu trúc kỹ thuật, nền tảng toán học và quy trình thực thi của mô hình **DeepANM (Deep Additive Noise Model)**. Đây là một hệ điều hành khám phá nhân quả (Causal Discovery) hiệu quả, được thiết kế để khắc phục những hạn chế của các phương pháp truyền thống trong việc xử lý dữ liệu phi tuyến, nhiễu không đồng nhất (Heterogeneous noise) và sự phức tạp của không gian trạng thái DAG.
 
-## 3.1 Cấu trúc tổng thể của hệ thống đề xuất
+## 2.1 Cấu trúc tổng thể của hệ thống đề xuất
 
 Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng không chu trình (DAG) từ dữ liệu quan sát là một bài khó khăn đặc thù do tính chất **NP-Hard** của không gian tìm kiếm. Khi số lượng biến $d$ tăng lên, số lượng đồ thị khả thi tăng trưởng theo hàm siêu mũ. Để giải quyết vấn đề này, DeepANM triển khai một lộ trình **3 Pha Tương hỗ (3-Phase Synergetic Pipeline)** thay vì chỉ dựa vào các phương pháp heuristic thông thường.
 
@@ -48,9 +48,9 @@ graph TD
     class Sink,ALM,CI highlight;
     class Encoder,SEM,Decoder core;
 ```
-<p align="center"><b>Hình 3.1: Kiến trúc luồng hệ thống 3 pha của DeepANM</b></p>
+<p align="center"><b>Hình 2.1: Kiến trúc luồng hệ thống 3 pha của DeepANM</b></p>
 
-## 3.2 Pha 1: Định hướng Topological và Tiền xử lý Dữ liệu
+## 2.2 Pha 1: Định hướng Topological và Tiền xử lý Dữ liệu
 
 Pha 1 đóng vai trò là bộ lọc sơ cấp, đảm bảo rằng các bước tối ưu hóa sau này không bị rơi vào các bẫy chu trình (Cycles) - một lỗi phổ biến của các mô hình dựa trên Gradient.
 
@@ -103,9 +103,9 @@ graph TD
     
     Loss -->|"Backprop"| Mask
 ```
-<p align="center"><b>Hình 3.2: Sơ đồ kiến trúc kỹ thuật chi tiết của khối GPPOM-HSIC</b></p>
+<p align="center"><b>Hình 2.2: Sơ đồ kiến trúc kỹ thuật chi tiết của khối GPPOM-HSIC</b></p>
 
-### 3.3.1 Kiến trúc Mạng MLP Thặng dư và Phân cụm Cơ chế
+### 2.2.1 Kiến trúc Mạng MLP Thặng dư và Phân cụm Cơ chế
 
 DeepANM không coi quan hệ giữa các biến là duy nhất. Thay vào đó, mô hình hỗ trợ **Cơ chế Hỗn hợp (Mechanism Clustering)**:
 1.  **Encoder VAE:** Sử dụng các lớp `Linear`, `LayerNorm` và `GELU` để dự đoán xác suất ẩn $Z$ nhằm xác định điểm dữ liệu thuộc cụm cơ chế nào. 
@@ -140,9 +140,9 @@ graph TD
     
     Noise --> Loss["Loss: MSE+NLL+h(W)"]
 ```
-<p align="center"><b>Hình 3.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
+<p align="center"><b>Hình 2.3: Chi tiết các thành phần lớp ẩn bên trong mạng Neural MLP</b></p>
 
-### 3.3.2 Tối ưu hóa Lagrangian Tăng cường (Augmented Lagrangian Method)
+### 2.3.2 Tối ưu hóa Lagrangian Tăng cường (Augmented Lagrangian Method)
 
 Quá trình huấn luyện được điều phối bởi thuật toán ALM nhằm ép đồ thị về dạng DAG mà không làm giảm độ chính xác dự đoán.
 
@@ -175,19 +175,19 @@ sequenceDiagram
     Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
     ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
-<p align="center"><b>Hình 3.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
+<p align="center"><b>Hình 2.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>
 
-## 3.4 Pha 3: Cắt tỉa và Chọn cạnh bằng Thích nghi Phi tuyến (Adaptive Pruning)
+## 2.4 Pha 3: Cắt tỉa và Chọn cạnh bằng Thích nghi Phi tuyến (Adaptive Pruning)
 
 Pha 3 giải quyết vấn đề "cạnh giả" do tối ưu hóa liên tục để lại. Thay vì cắt ngưỡng cố định (Hard threshold), DeepANM áp dụng chiến lược **Double-Gate Select**.
 
-### 3.4.1 Chọn cạnh qua Nonlinear Adaptive LASSO
+### 2.4.1 Chọn cạnh qua Nonlinear Adaptive LASSO
 
 DeepANM sử dụng **Random Forest Permutation Importance** để chấm điểm cạnh:
 - Một cạnh $i \to j$ chỉ được giữ lại nếu việc hoán vị giá trị của $i$ gây ra sự sụt giảm ý nghĩa trên tập kiểm tra ($> 3\%$ R-squared) và tín hiệu này phải vượt qua rào chắn nhiễu thống kê ($> 2\sigma$).
 - Kỹ thuật này mạnh hơn LASSO truyền thống vì nó không giả định quan hệ tuyến tính giữa các biến.
 
-### 3.4.2 Màng lọc Giao thoa Causal Jacobian (ATE Gate)
+### 2.4.2 Màng lọc Giao thoa Causal Jacobian (ATE Gate)
 
 Pha 3 còn tính toán ma trận **Jacobian ATE** để đo lường sự can thiệp trực tiếp bằng đạo hàm riêng của mạng neural. Chỉ những cạnh có cả độ quan trọng thống kê (từ RF) và cường độ can thiệp thực sự (Jacobian ATE $> 0.01$) mới được ghi nhận vào DAG cuối cùng.
 
@@ -195,7 +195,7 @@ $$
 \text{ATE}_{ij} = \left| \frac{\partial \hat{X}_j}{\partial X_i} \right|
 $$
 
-### 3.4.3 Hậu kiểm Độc lập Điều kiện (Conditional Independence - CI)
+### 2.4.3 Hậu kiểm Độc lập Điều kiện (Conditional Independence - CI)
 
 Một bước kiểm tra cuối cùng được thực hiện bằng cách sử dụng các mô hình hồi quy phi tuyến để tính phần dư điều kiện. 
 Nếu $X_i \perp X_j | \{PA_j \setminus X_i\}$, tức là thông tin từ $i$ đã bị triệt tiêu hoàn toàn khi biết các cha khác của $j$, cạnh $i \to j$ sẽ bị coi là đường truyền gián tiếp (V-structure hoặc chain) và bị loại bỏ.
@@ -209,15 +209,15 @@ graph TD
     Logic --> CI["Cổng 3:<br/>Test Độc lập CI"]
     CI --> Final["DAG Cuối cùng"]
 ```
-<p align="center"><b>Hình 3.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
+<p align="center"><b>Hình 2.5: Cơ chế lọc cạnh nhiễu qua hệ thống Double-Gate (Pha 3)</b></p>
 
-## 3.5 Đặc tính Kỹ thuật và Tính Diễn dịch
+## 2.5 Đặc tính Kỹ thuật và Tính Diễn dịch
 
 Mô hình DeepANM được thiết kế với các đặc tính :
 - **Scale Invariance:** Nhờ vào bước chuẩn hóa phân vị (Quantile Transformer), mô hình không bị ảnh hưởng bởi độ lệch thang đo đơn vị giữa các biến.
 - **Robustness:** Cấu trúc Res-MLP và Gradient Clipping giúp mô hình ổn định cả trên các tập dữ liệu có nhiễu cực đại.
 - **Identifiability:** Bằng cách tách biệt phần dư và kiểm định HSIC, mô hình khai thác tối đa tính bất đối xứng của nhiễu để phân biệt Cha - Con.
 
-## 3.6 Tiểu kết chương
+## 2.6 Tiểu kết chương
 
 Nội dung này đã trình bày chi tiết kiến trúc đa tầng của DeepANM, từ các tầng học máy cốt lõi đến các bộ điều phối huấn luyện và tinh chỉnh cạnh. Sự phối hợp nhịp nhàng giữa thống kê phi tham số và mạng neural sâu giúp DeepANM trở thành một công cụ khám phá nhân quả hiệu quả, sẵn sàng cho các thử thách thực nghiệm thực tế.

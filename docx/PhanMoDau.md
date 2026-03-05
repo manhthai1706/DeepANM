@@ -67,7 +67,7 @@ Tại Việt Nam, các hướng nghiên cứu về Trí tuệ Nhân tạo (AI) h
 
 Với nội dung và mục tiêu trên, báo cáo được tổ chức thành 5 chương chính:
 - **Phần mở đầu:** Lý do chọn đề tài, mục tiêu, đối tượng, phương pháp và khung tóm tắt đề tài. 
-- **Chương 2 – Cơ sở lý thuyết:** Trình bày nền tảng cốt lõi về đồ thị nhân quả DAG, mô hình phương trình cấu trúc (SEM), nguyên lý tính bất đối xứng mô hình Nhiễu ANM, toán tử Hilbert-Schmidt và hàm phạt tối ưu phi chu trình liên tục. 
-- **Chương 3 – Mô hình Deep Additive Noise Model (DeepANM):** Lý giải hệ thống Pipeline 3 pha do tác giả tích hợp, mô tả phân rã kỹ thuật từ sắp xếp Topological, quy luật huấn luyện MLP kết hợp Gumbel-Softmax Noise đến phương thức Adaptive LASSO lọc cạnh ngõ ra. 
-- **Chương 4 – Thử nghiệm và Đánh giá (Experimental Results):** Giới thiệu các bộ dữ liệu dùng để benchmark, so sánh tham số SHD/Accuracy với cơ sở truyền thống. Trình bày Ablation Study kiểm duyệt sức chịu tải của từng Modun thiết kế. 
-- **Phần kết luận:** Đúc kết lại sức mạnh của hệ thống DeepANM so với mục tiêu đề ra và mở rộng hướng giải đáp các điểm yếu của thuật toán trong tương lai. 
+- **Chương 1 – Cơ sở lý thuyết:** Trình bày nền tảng cốt lõi về đồ thị nhân quả DAG, mô hình phương trình cấu trúc (SEM), nguyên lý tính bất đối xứng mô hình Nhiễu ANM, toán tử Hilbert-Schmidt và hàm phạt tối ưu phi chu trình liên tục. 
+- **Chương 2 – Mô hình Deep Additive Noise Model (DeepANM):** Lý giải hệ thống Pipeline 3 pha do tác giả tích hợp, mô tả phân rã kỹ thuật từ sắp xếp Topological, quy luật huấn luyện MLP kết hợp Gumbel-Softmax Noise đến phương thức Adaptive LASSO lọc cạnh ngõ ra. 
+- **Chương 3 – Thử nghiệm và Đánh giá (Experimental Results):** Giới thiệu các bộ dữ liệu dùng để benchmark, so sánh tham số SHD/Accuracy với cơ sở truyền thống. Trình bày Ablation Study kiểm duyệt sức chịu tải của từng Modun thiết kế. 
+- **Chương 4 – Kết luận:** Đúc kết lại sức mạnh của hệ thống DeepANM so với mục tiêu đề ra và mở rộng hướng giải đáp các điểm yếu của thuật toán trong tương lai. 

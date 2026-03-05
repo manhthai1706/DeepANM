@@ -1,8 +1,8 @@
-# CHƯƠNG 4: KẾT QUẢ THỰC NGHIỆM VÀ ĐÁNH GIÁ
+# CHƯƠNG 3: KẾT QUẢ THỰC NGHIỆM VÀ ĐÁNH GIÁ
 
 Chương này trình bày các kết quả thực nghiệm thu được khi triển khai mô hình DeepANM trên các bộ dữ liệu chuẩn và dữ liệu thực tế. Mục tiêu là kiểm chứng khả năng khám phá cấu trúc nhân quả trong các kịch bản phi tuyến, đồng thời đánh giá vai trò của từng thành phần trong kiến trúc 3 pha đã đề xuất.
 
-## 4.1 Thiết lập thực nghiệm
+## 3.1 Thiết lập thực nghiệm
 
 ### 4.1.1 Môi trường và Cấu hình hệ thống
 
@@ -34,7 +34,7 @@ graph TD
     Info --> ATE["ATE<br/>(Average Treatment Effect)"]
     Info --> Stability["Bootstrapping Stability"]
 ```
-<p align="center"><b>Hình 4.1: Hệ thống các chỉ số đánh giá hiệu năng đồ thị nhân quả</b></p>
+<p align="center"><b>Hình 3.1: Hệ thống các chỉ số đánh giá hiệu năng đồ thị nhân quả</b></p>
 
 1.  **Structural Hamming Distance (SHD):** Số lượng thao tác tối thiểu (thêm, xóa, đảo hướng) để biến đổi $\hat{G}$ thành $G^*$. SHD càng thấp, độ chính xác càng cao.
 2.  **Normalized Hamming Distance (NHD):** SHD chia cho tổng số cạnh có thể có ($d(d-1)$), giúp so sánh khách quan giữa các đồ thị có quy mô khác nhau.
@@ -44,7 +44,7 @@ graph TD
 4.  **F1-Score:** Giá trị trung bình điều hòa của Precision và Recall, phản ánh sự cân bằng của mô hình.
 5.  **Accuracy (Độ chính xác toàn cục):** Tỷ lệ các cặp biến được dự đoán đúng trạng thái (có cạnh hoặc không có cạnh).
 
-## 4.2 Đánh giá trên dữ liệu mạng Protein (Sachs Dataset)
+## 3.2 Đánh giá trên dữ liệu mạng Protein (Sachs Dataset)
 
 ### 4.2.1 Giới thiệu dữ liệu
 
@@ -58,7 +58,7 @@ Mô hình DeepANM (phiên bản tích hợp TopoSort mới) đã được chạy
 
 <div align="center">
 
-**Bảng 4.1: Kết quả đánh giá DeepANM trên Sachs Dataset**
+**Bảng 3.1: Kết quả đánh giá DeepANM trên Sachs Dataset**
 
 | Chỉ số | Giá trị | Ghi chú |
 | :--- | :--- | :--- |
@@ -99,7 +99,7 @@ Một đặc điểm hiệu quả của DeepANM là khả năng tích hợp linh
 
 <div align="center">
 
-**Bảng 4.2: Kết quả SHD trên Sachs Dataset của một số thuật toán**
+**Bảng 3.2: Kết quả SHD trên Sachs Dataset của một số thuật toán**
 
 | Thuật toán | SHD | Ghi chú về mô hình |
 | :--- | :--- | :--- |
@@ -120,13 +120,13 @@ Dựa trên bảng đối chiếu, có thể thấy khi không sử dụng thôn
 Cách tiếp cận này giúp ổn định hướng cạnh và phát huy hiệu quả của kiến trúc đa giai đoạn trong việc xử lý các quan hệ nhân quả phức tạp.
 
 
-## 4.3 Nghiên cứu cắt bỏ thành phần (Ablation Study)
+## 3.3 Nghiên cứu cắt bỏ thành phần (Ablation Study)
 
 Để hiểu rõ giá trị của từng module trong DeepANM, chúng tôi thực hiện thử nghiệm trên Sachs Dataset với 4 cấu hình tăng dần về độ phức tạp (Ablation levels).
 
 <div align="center">
 
-**Bảng 4.3: So sánh hiệu quả của các thành phần trong DeepANM**
+**Bảng 3.3: So sánh hiệu quả của các thành phần trong DeepANM**
 
 | Cấp độ | Cấu hình thành phần | SHD | F1 | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- |
@@ -155,13 +155,13 @@ graph TD
     Improve["Cải thiện hiệu năng"]
     L1 -.->|"-59%"| L4
 ```
-<p align="center"><b>Hình 4.2: Biểu đồ xu hướng sụt giảm SHD qua các cấp độ tích hợp thành phần</b></p>
+<p align="center"><b>Hình 3.2: Biểu đồ xu hướng sụt giảm SHD qua các cấp độ tích hợp thành phần</b></p>
 
 - Bước nhảy từ Level 1 lên Level 2 chứng minh rằng các quan hệ trong tế bào là **phi tuyến**, việc dùng OLS (tuyến tính) gây ra sai số SHD rất cao (42). Việc dùng RF giúp giảm SHD xuống còn 23 (giảm ~45%).
 - Việc tích hợp **CI Pruning** (Level 3) tiếp tục đẩy SHD xuống mức 18, cho thấy khả năng loại bỏ các tương quan giả hiệu quả.
 - **Level 4** đạt SHD thấp nhất (17) nhờ vào màng lọc ATE Gate, giúp mô hình đạt độ tinh khiết cao nhất về mặt cấu trúc.
 
-## 4.4 Thử nghiệm thăm dò trên dữ liệu kinh tế (Boston Housing)
+## 3.4 Thử nghiệm thăm dò trên dữ liệu kinh tế (Boston Housing)
 
 Khác với Sachs, bộ dữ liệu Boston Housing không có đồ thị chuẩn (Ground Truth DAG). Thử nghiệm này nhằm kiểm tra tính thực tiễn và khả năng diễn giải của mô hình trên dữ liệu xã hội học.
 
@@ -176,7 +176,7 @@ graph TD
     MEDV["MEDV<br/>(Giá nhà)"] -- "- 0.07" --> LSTAT["LSTAT<br/>(% Dân nghèo)"]
     NOX["NOX<br/>(Ô nhiễm)"] -- "- 0.04" --> DIS["K/c trung tâm"]
 ```
-<p align="center"><b>Hình 4.3: Các nhân tố can thiệp chính trong dữ liệu Boston Housing</b></p>
+<p align="center"><b>Hình 3.3: Các nhân tố can thiệp chính trong dữ liệu Boston Housing</b></p>
 
 1.  **TAX (Thuế) → INDUS (Khu công nghiệp):** ATE dương mạnh (+0.08). Mô hình phát hiện mối liên hệ chặt chẽ giữa tỷ lệ thuế tài sản và tỷ lệ đất công nghiệp, phản ánh quy hoạch kinh tế đặc thù của các khu vực.
 2.  **RM (Số phòng) → MEDV (Giá nhà):** ATE dương (+0.06). Số phòng trung bình là yếu tố then chốt đẩy cao giá trị bất động sản.
@@ -187,7 +187,7 @@ graph TD
 
 Thay vì chỉ đưa ra một mũi tên vô hồn, DeepANM cung cấp giá trị **ATE**. Ví dụ, chỉ số ATE của $RM \to MEDV$ cho biết nếu can thiệp làm tăng 1 đơn vị số phòng, giá nhà trung bình sẽ tăng tương ứng bao nhiêu phần nghìn USD. Điều này mang lại giá trị thực tiễn cho các nhà hoạch định chính sách hoặc các chuyên gia phân tích dữ liệu.
 
-## 4.5 Tiểu kết
+## 3.5 Tiểu kết
 
 Thông qua các thực nghiệm trên, DeepANM đã chứng minh được tính hiệu quả và độ tin cậy của kiến trúc 3 pha:
 - **Pha 1 (TopoSort)** đóng vai trò là "la bàn" định hướng chính xác không gian tìm kiếm, đặc biệt hiệu quả khi có sự hỗ trợ của tri thức miền.
