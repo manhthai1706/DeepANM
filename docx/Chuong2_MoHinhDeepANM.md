@@ -187,29 +187,31 @@ Với một đồ thị được rèn giũa từ một tổ hợp hàm mạng ne
 
 ```mermaid
 graph TD
-    Raw["Cạnh ứng viên khởi tạo từ ALM"]
+    Raw["Cạnh ứng viên<br/>khởi tạo từ ALM"]
     
     subgraph Gate1 ["Bước 1: Kiểm định Độ lớn Can thiệp"]
-        Raw --> Jacobian["Tính toán Ma trận Causal Jacobian ATE"]
-        Jacobian --> Cond1{"|ATE| > Tối thiểu (0.005)?"}
+        direction TB
+        Raw --> Jacobian["Tính toán Ma trận<br/>Causal Jacobian ATE"]
+        Jacobian --> Cond1{"|ATE| > 0.005?"}
+        Cond1 -.-> |"Tác động<br/>quá bé"| Drop1["Loại bỏ"]
     end
     
     subgraph Gate2 ["Bước 2: Phân tích Tầm quan trọng Phi tuyến"]
-        Cond1 --> |"Đạt ngưỡng ATE"| RF["Xáo trộn Đặc trưng với Random Forest"]
-        RF --> Cond2{"Độ suy giảm R-Squared > 3%?"}
+        direction TB
+        Cond1 --> |"Đạt ngưỡng<br/>ATE"| RF["Xáo trộn Đặc trưng<br/>với Random Forest"]
+        RF --> Cond2{"Độ suy giảm<br/>R-Squared > 3%?"}
+        Cond2 -.-> |"Bị hấp thụ<br/>bởi nhiễu"| Drop2["Loại bỏ"]
     end
     
     subgraph Gate3 ["Bước 3: Kiểm định Độc lập Điều kiện (CI Test)"]
-        Cond2 --> |"Có lực tương quan"| HistGBM["Hồi quy đa biến HistGradientBoosting"]
-        HistGBM --> Pearson["Tính phần dư và đánh giá Tương quan Pearson"]
-        Pearson --> Cond3{"Kiểm định Ý nghĩa Thống kê (p-value > 0.01)?"}
+        direction TB
+        Cond2 --> |"Có lực<br/>tương quan"| HistGBM["Hồi quy đa biến<br/>HistGradientBoosting"]
+        HistGBM --> Pearson["Tính phần dư và<br/>đánh giá Pearson"]
+        Pearson --> Cond3{"p-value > 0.01\n(Ý nghĩa thống kê)?"}
+        Cond3 -.-> |"Liên kết<br/>gián tiếp"| Drop3["Loại bỏ"]
     end
     
-    Cond3 --> |"Biến độc lập sau khi tách trung gian"| Final["Xác nhận Cạnh Nhân quả Phi chập"]
-    
-    Cond1 -.-> |"Tác động cận vô cùng bé"| Drop["Loại bỏ Liên kết"]
-    Cond2 -.-> |"Bị hấp thụ bởi nhiễu"| Drop
-    Cond3 -.-> |"Liên kết gián tiếp (A -> B -> C)"| Drop
+    Cond3 --> |"Biến độc lập sau<br/>khi tách trung gian"| Final["Xác nhận Cạnh<br/>Nhân quả Phi chập"]
 ```
 <p align="center"><b>Hình 2.6: Quy trình tinh lọc Adaptive LASSO loại bỏ hệ số gây nhiễu và tương quan giả thông qua 3 cấp độ kiểm định.</b></p>
 
