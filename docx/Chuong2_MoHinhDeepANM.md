@@ -89,23 +89,23 @@ graph TD
     subgraph MLP_Forward ["Luồng thực thi MLP.forward(x)"]
         direction TB
         
-        X --> Step1_Enc["1. feat, z_soft, kl_loss = self.encoder(x)"]
+        X --> Step1_Enc["1. Lớp Encoder (VAE):<br/>feat, z_soft, kl_loss = self.encoder(x)"]
         Step1_Enc --> z_soft["z_soft"]
         Step1_Enc --> kl_loss["kl_loss"]
         
-        X --> Step2_SEM["2. mu = self.sem(x)"]
+        X --> Step2_SEM["2. Lớp ANM_SEM:<br/>mu = self.sem(x)"]
         Step2_SEM --> mu["mu"]
         
-        X --> Step3_Dec["3. g_x = self.pnl_transform(x)"]
+        X --> Step3_Dec["3. Lớp Decoder (PNL):<br/>g_x = self.pnl_transform(x)"]
         Step3_Dec --> g_x["g_x"]
         
-        g_x --> CalcProxy["Tính: noise_proxy = g_x - mu"]
+        g_x --> CalcProxy["Tính đại diện nhiễu:<br/>noise_proxy = g_x - mu"]
         mu --> CalcProxy
         
-        CalcProxy --> Step4_Noise["4. \nself.noise_model.compute_log_prob(noise_proxy)"]
+        CalcProxy --> Step4_Noise["4. Lớp HeterogeneousNoiseModel:<br/>self.noise_model.compute_log_prob(noise_proxy)"]
         Step4_Noise --> log_prob_noise["log_prob_noise"]
         
-        z_soft --> Output[/"Trả về Dictionary: \n{z_soft, kl_loss, mu, log_prob_noise}"/]
+        z_soft --> Output[/"Trả về Từ điển Kết quả:<br/>{z_soft, kl_loss, mu, log_prob_noise}"/]
         kl_loss --> Output
         mu --> Output
         log_prob_noise --> Output
