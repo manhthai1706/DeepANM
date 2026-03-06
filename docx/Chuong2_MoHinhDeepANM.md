@@ -84,34 +84,34 @@ Nhờ vào kiến trúc hướng đối tượng bóc tách nghiêm ngặt, dòn
 
 ```mermaid
 graph TD
-    X["Đầu vào Dữ liệu: x (Đã phủ nhãn che - Masked)"]
+    X["Dữ liệu quan sát đã được chọn lọc (Masked X)"]
     
-    subgraph MLP_Forward ["Luồng dữ liệu trong Mạng Lõi"]
+    subgraph MLP_Forward ["Khai triển Luồng xử lý Mạng Neural Lõi"]
         direction TB
         
-        X --> Step1_Enc["1. Bộ Mã hóa VAE:<br/>Trích xuất đặc trưng -> Xác suất Cụm -> Điểm phạt Phân kỳ"]
-        Step1_Enc --> z_soft["Xác suất Cơ chế Z"]
-        Step1_Enc --> kl_loss["Phạt phân kỳ"]
+        X --> Step1_Enc["1. Bộ Mã hóa Lượng tử (VAE):<br/>Tính Xác suất Hậu nghiệm (Z) và Suy hao Phân kỳ KL"]
+        Step1_Enc --> z_soft["Xác suất Cơ chế (Z)"]
+        Step1_Enc --> kl_loss["Phạt Phân kỳ (KL Divergence)"]
         
-        X --> Step2_SEM["2. Bộ Giải phương trình Cấu trúc:<br/>Xử lý qua mạng dư tắt để tìm Lực lượng Trung bình"]
-        Step2_SEM --> mu["Lực can thiệp f(X)"]
+        X --> Step2_SEM["2. Khối Phương trình Cấu trúc (SEM):<br/>Nội suy Mạng thặng dư (Res-Net) để tính Lực kỳ vọng"]
+        Step2_SEM --> mu["Lực can thiệp trung bình f(X)"]
         
-        X --> Step3_Dec["3. Bộ Giải mã Đơn điệu:<br/>Đẩy số liệu qua hàm khả nghịch Softplus"]
-        Step3_Dec --> g_x["Kết xuất biên g(X)"]
+        X --> Step3_Dec["3. Bộ Giải mã Đơn điệu (PNL):<br/>Ánh xạ khả nghịch qua hàm Softplus"]
+        Step3_Dec --> g_x["Biến đổi biên khả nghịch g(X)"]
         
-        g_x --> CalcProxy["Tính toán độ biến dạng Nhiễu thuần túy:<br/>Phần dư = g(X) - f(X)"]
+        g_x --> CalcProxy["Tính toán Đại diện Nhiễu (Noise Proxy):<br/>Phần dư = g(X) - f(X)"]
         mu --> CalcProxy
         
-        CalcProxy --> Step4_Noise["4. Mô hình Nhiễu Hỗn hợp:<br/>Tính toán log hợp lý thống kê dị biệt của phần dư"]
-        Step4_Noise --> log_prob_noise["Điểm log-likelihood"]
+        CalcProxy --> Step4_Noise["4. Mô hình Nhiễu Hỗn hợp (GMM):<br/>Ước lượng hàm hợp lý (Log-Likelihood) của Đa phân phối"]
+        Step4_Noise --> log_prob_noise["Hợp lý Âm (Negative Log-likelihood)"]
         
-        z_soft --> Output[/"Trả về Khối từ điển Tổng phân tích:<br/>{Nhãn cơ chế, Phạt phân kỳ, Lực can thiệp, Chuẩn nhiễu}"/]
+        z_soft --> Output[/"Tổng hợp Không gian Đặc trưng Dự báo:<br/>{Z, KL Divergence, f(X), Log-likelihood}"/]
         kl_loss --> Output
         mu --> Output
         log_prob_noise --> Output
     end
 ```
-<p align="center"><b>Hình 2.3: Mô phỏng logic dòng dữ liệu truyền tiến và sự phân giải trách nhiệm chiết tách hàm nhân quả f(X) và hệ nhiễu</b></p>
+<p align="center"><b>Hình 2.3: Mô phỏng logic dòng truyền tiến và sự phân giải toán học hàm nhân quả f(X) và hệ nhiễu.</b></p>
 
 ### 2.3.2 Kiến trúc Điều phối Song song Tổng quát
 
@@ -157,27 +157,27 @@ Ma trận nghịch lý này đòi hỏi một máy điều nhịp điều hành,
 
 ```mermaid
 sequenceDiagram
-    participant T as Bộ Điều phối ALM
-    participant O as Tối ưu hóa Bước AdamW
+    participant T as Bộ Tối ưu hóa (ALM)
+    participant O as Thuật toán Trọng số (AdamW)
     participant M as Mạng Nhân quả Neural
     
-    T->>M: Cung cấp Batch Dữ liệu mẫu, Hệ số kích hoạt mềm
-    M->>T: Tính tổn thất (Tổn thất 7 hàm số gốc + Hình phạt cấu trúc DAG)
-    T->>O: Tính Gradient đa hướng và Áp sát giá trị cực hạn (Chống Gradient nổ)
+    T->>M: Cung cấp Batch Dữ liệu mẫu, Siêu tham số nhiệt độ
+    M->>T: Tính toán Tổn thất (Hàm Loss Tổng + Hình phạt cấu trúc DAG)
+    T->>O: Tính Gradient đa biến và Cắt biên Gradient (Gradient Clipping)
     O->>M: Lan truyền ngược cập nhật Trọng số liên tục
     
-    opt Mỗi chu kỳ theo quy mô Epoch định sẵn
-        T->>M: Gọi đánh giá độ vi phạm tính Phi chu trình
-        alt Số vòng lặp không chịu suy giảm
-            T->>T: Tác động hình phạt Cứng mạnh gấp đôi để triệt tiêu ngoan cố
-        else Đồ thị dần về cấu trúc phân tầng h(W) cực nhỏ
-            T->>T: Tích lũy điều chỉnh hệ số giãn xả theo chuỗi Lagrange
+    opt Sau số vòng lặp Epoch định lý
+        T->>M: Đánh giá độ vi phạm tính Phi chu trình h(W)
+        alt Gradient h(W) không thỏa mãn Tỷ lệ Dung sai suy giảm
+            T->>T: Tăng hệ số Hình phạt Cứng (Rho) theo phân phối Logarithmic
+        else Cấu trúc có dấu hiệu Hội tụ h(W) tiệm cận 0
+            T->>T: Tính chuỗi tích lũy Lagrangian (Alpha)
         end
     end
 ```
-<p align="center"><b>Hình 2.5: Trình tự kiểm soát năng lượng tối ưu hóa ALM, liên tục kiểm tra và điều khiển xu hướng phá hoại chu trình</b></p>
+<p align="center"><b>Hình 2.5: Lưu đồ tuần tự của cơ chế kiểm soát động lực học (Augmented Lagrangian Method) đảm bảo tính Không chu trình.</b></p>
 
-Khâu kiểm soát ALM như một người cai ngục độc lập với mạng neural, chỉ theo dõi sự vi phạm chỉ số hướng tạo chu kỳ. Không có hệ thống ALM này, mô hình sẽ thỏa hiệp độ đo dự đoán bằng cách nối chằng chịt hệ thống vòng lặp tự ngụy biện.
+Công tác rào chắn thuật toán của ALM hoạt động như một hệ kiểm soát độc lập với mạng neural, chỉ theo dõi sự vi phạm chỉ số hướng vòng lặp. Sự tồn tại của việc tách rời kỹ thuật này giúp giảm bớt rủi ro thiên vị do mô hình có khuynh hướng tự thỏa hiệp độ đo dự đoán bằng cách nối chằng chịt hệ thống.
 
 ---
 
