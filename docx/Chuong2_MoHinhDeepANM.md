@@ -76,35 +76,55 @@ Khối `GPPOM_HSIC` (Gaussian Process Partially Observable Model) và lõi `MLP`
 
 ### 2.3.1 Kiến trúc Mạng Neural Nhân quả (MLP)
 
-Module `MLP` không đơn thuần là mô hình Perceptron đa lớp, nó được chia thành 4 phân hệ phụ trách 4 chức năng sinh học thống kê khác nhau của dữ liệu.
+Module lõi `MLP` không đơn thuần là một mô hình Perceptron đa lớp dự báo điểm, mà là một hệ cơ sở bao gồm 4 phân hệ phụ trách 4 bài toán sinh học/thống kê riêng biệt: 
+
+1.  **Bộ mã hóa cơ chế (Encoder VAE):** Dùng mạng MLP + LayerNorm để dự đoán xác suất ẩn $Z$, biến đổi qua Gumbel-Softmax có ủ nhiệt (Annealing) để xác định điểm dữ liệu thuộc tác nhân nào. Mạng lưới tự động sinh ra sai số KL Divergence để chống bão hòa.
+2.  **Khối Phương trình Cấu trúc (SEM):** Sử dụng các khối cấu trúc Res-MLP với các liên kết tắt (Skip Connection) để học hàm sinh nhân quả chính xác $f(X)$ một cách tuyến tính và phi tuyến.
+3.  **Bộ Giải mã PNL (Decoder):** Biến đổi đầu vào bằng hàm đơn điệu $g(X)$ (thông qua giới hạn trọng số Softplus) bảo toàn tính khả nghịch. Cấu trúc Post-Nonlinear này cho phép tách đại diện nhiễu một cách chính xác theo chuẩn ANM: $N = g(X) - f(X)$.
+4.  **Hệ Nhiễu Hỗn hợp (GMM):** Tính toán mô hình Gaussian đa đỉnh (5 thành phần Gauss) trên đại diện nhiễu để sinh ra điểm phạt Log-Likelihood (NLL). Công nghệ này cho phép DeepANM xử lý cực tốt dữ liệu nhiễu không đồng nhất (Heterogeneous heavy-tailed noise).
 
 ```mermaid
 graph TD
+    classDef enc fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
+    classDef sem fill:#e8f5e9,stroke:#4caf50,stroke-width:2px;
+    classDef noise fill:#ffebee,stroke:#f44336,stroke-width:2px;
+    
     In["Đầu vào X_masked"]
     
     subgraph Cluster_Encoder ["1. Bộ mã hóa Cơ chế (Encoder VAE)"]
-        In --> E_Linear["Linear + LayerNorm + GELU"]
-        E_Linear --> E_Logits["Logits Cơ chế ẩn"]
-        E_Logits --> Gumbel["Lấy mẫu Gumbel-Softmax"]
-        Gumbel --> Z_soft["Xác suất Cơ chế Z"]
+        direction TB
+        In --> E_Net["Mạng MLP (Linear + LayerNorm + GELU)"]
+        E_Net --> E_Logits["Logits dự báo"]
+        E_Logits --> Gumbel["Lấy mẫu Gumbel-Softmax (Nhiệt độ Tau)"]
+        Gumbel --> Z["Xác suất Cơ chế Z_soft (Tồn tại độc lập)"]
+        Gumbel -.-> KL["KL Divergence Loss"]
     end
     
     subgraph Neural_SEM ["2. Khối Phương trình Cấu trúc (ANM_SEM)"]
-        In --> S_Proj["Input Projection"]
-        S_Proj --> Res1["Khối Res-MLP 1 (Skip Connection)"]
-        Res1 --> Res2["Khối Res-MLP 2"]
-        Res2 --> Mu["Luồng Tác động Trung bình Mu"]
+        direction TB
+        In --> S_Proj["Chiếu không gian (Input Projection)"]
+        S_Proj --> Res["Các khối Res-MLP (Skip Connection)"]
+        Res --> Mu["Hàm sinh nhân quả (Tác động trung bình) f(X)"]
     end
     
-    subgraph Decoder_Noise ["3. Bộ Giải mã & Nhiễu Hỗn hợp"]
-        Z_soft --> Noise["Mô hình Nhiễu GMM (5 đỉnh)"]
-        Mu --> PNL["Bộ Decoder hậu phi tuyến (Softplus)"]
-        PNL --> Y_hat["Dự đoán Phục hồi Y_hat"]
+    subgraph Decoder_Noise ["3. Hệ thống Giải mã và Nhiễu (PNL & GMM)"]
+        direction TB
+        In --> PNL["Biến đổi PNL (Softplus Monotonic)"]
+        PNL --> GX["Đầu ra biên g(X)"]
+        
+        GX --> Sub{"Phép Trừ (-)"}
+        Mu --> Sub
+        Sub --> Proxy["Đại diện Nhiễu: N = g(X) - f(X)"]
+        
+        Proxy --> GMM["Mô hình Nhiễu Hỗn hợp GMM (5 đỉnh Gauss)"]
+        GMM --> NLL["Phạt Negative Log-Likelihood (NLL Loss)"]
     end
+    
+    class Cluster_Encoder enc;
+    class Neural_SEM sem;
+    class Decoder_Noise noise;
 ```
-<p align="center"><b>Hình 2.3: Phân rã cấu trúc mạng MLP. Đảm nhiệm nhận diện cơ chế ẩn (Màu xanh), học lực tác động nhân quả (Màu lục) và phân phối nhiễu phức tạp (Màu đỏ)</b></p>
-
-Cơ chế *Heterogeneous Noise Model* cho phép xử lý dữ liệu với nhiễu đuôi nặng (heavy-tailed) hoặc đa đỉnh, vô cùng thích hợp cho dữ liệu sinh học hay tài chính.
+<p align="center"><b>Hình 2.3: Mô tả dòng chảy toán học bên trong mạng đa lớp MLP. Sự phân tách trách nhiệm giữa (1) Nhận dạng cơ chế, (2) Tính toán lực nhân quả cốt lõi f(X), và (3) Xấp xỉ tiếng ồn phi Gaussian.</b></p>
 
 ### 2.3.2 Kiến trúc Điều phối Tổng thể (GPPOM-HSIC)
 
