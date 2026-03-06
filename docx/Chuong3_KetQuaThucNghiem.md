@@ -74,6 +74,11 @@ Mô hình DeepANM (phiên bản tích hợp TopoSort mới) đã được chạy
 
 ### 3.2.3 Phân tích các quan hệ nhân quả tìm thấy
 
+<p align="center">
+  <img src="../results/sachs_comparison.png" alt="Sachs DAG Comparison" width="100%">
+</p>
+<p align="center"><b>Hình 3.2: Đối chiếu mạng nhân quả sinh học dự đoán bởi DeepANM (phải) và Đồ thị chuẩn Ground Truth (trái)</b></p>
+
 Mô hình đã phát hiện thành công các trục nhân quả cốt lõi:
 - **Trục PKA:** Các cạnh $PKA \to ERK$, $PKA \to MEK$, $PKA \to RAF$ được tìm thấy với độ ổn định rất cao. PKA được xác định là nguồn tín hiệu mạnh nhất trong mạng lưới.
 - **Trục PKC:** Phát hiện các kết nối $PKC \to RAF$, $PKC \to P38$ và $PKC \to JNK$.
@@ -117,35 +122,22 @@ Cách tiếp cận này giúp ổn định hướng cạnh và phát huy hiệu 
 | Cấp độ | Cấu hình thành phần | SHD | F1 | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- |
 | **Level 1** | TopoSort + OLS Baseline | 42 | 36.6% | Nhiều cạnh giả (FP=42) |
-| **Level 2** | + Random Forest (Non-linear) | 23 | 46.8% | Giảm mạnh FP nhờ RF (FP=20) |
-| **Level 3** | + Conditional Independence (CI) | 18 | 50.0% | Loại bỏ các cạnh đi vòng (FP=14) |
-| **Level 4** | **Full Pipeline (Double-Gate)** | **17** | **45.7%** | Tối ưu hóa Precision (FP=11) |
+| **Level 2** | + Random Forest (Non-linear) | 22 | 47.8% | Giảm mạnh FP nhờ RF (FP=19) |
+| **Level 3** | + Conditional Independence (CI) | 19 | 46.2% | Loại bỏ các cạnh đi vòng (FP=14) |
+| **Level 4** | **Full Pipeline (Double-Gate)** | **16** | **50.0%** | Tối ưu hóa F1 và cấu trúc (FP=11) |
 
 </div>
 
 **Nhận xét:** 
 
-```mermaid
-graph TD
-    subgraph Levels ["Tiến trình tối ưu hóa SHD"]
-        L1["L1: OLS Baseline<br/>(SHD=42)"]
-        L2["L2: RF Integration<br/>(SHD=23)"]
-        L3["L3: CI Pruning<br/>(SHD=18)"]
-        L4["L4: Full Pipeline<br/>(SHD=17)"]
-        
-        L1 --> L2
-        L2 --> L3
-        L3 --> L4
-    end
-    
-    Improve["Cải thiện hiệu năng"]
-    L1 -.->|"-59%"| L4
-```
-<p align="center"><b>Hình 3.2: Biểu đồ xu hướng sụt giảm SHD qua các cấp độ tích hợp thành phần</b></p>
+<p align="center">
+  <img src="../results/ablation_study_comparison.png" alt="Ablation Comparison" width="80%">
+</p>
+<p align="center"><b>Hình 3.3: Biểu đồ xu hướng sụt giảm lỗi cấu trúc (SHD) và cải thiện F1 qua các chu trình tối ưu</b></p>
 
-- Bước nhảy từ Level 1 lên Level 2 chứng minh rằng các quan hệ trong tế bào là **phi tuyến**, việc dùng OLS (tuyến tính) gây ra sai số SHD rất cao (42). Việc dùng RF giúp giảm SHD xuống còn 23 (giảm ~45%).
-- Việc tích hợp **CI Pruning** (Level 3) tiếp tục đẩy SHD xuống mức 18, cho thấy khả năng loại bỏ các tương quan giả hiệu quả.
-- **Level 4** đạt SHD thấp nhất (17) nhờ vào màng lọc ATE Gate, giúp mô hình đạt độ tinh khiết cao nhất về mặt cấu trúc.
+- Bước nhảy từ Level 1 lên Level 2 chứng minh rằng các quan hệ trong tế bào là **phi tuyến**, việc dùng OLS (tuyến tính) gây ra sai số SHD rất cao (42). Việc dùng RF giúp giảm SHD xuống khoảng một nửa (giảm ~48%).
+- Việc tích hợp **CI Pruning** (Level 3) tiếp tục đẩy SHD xuống mức 19 cho thấy khả năng triệt tiêu các quan hệ bắc cầu gián tiếp.
+- **Level 4** (SCM + ATE Gate) giúp mô hình đạt cấu trúc thanh lọc cực tốt (SHD=16) và giữ mức F1 cao nhất (50.0%), chứng minh sự ưu việt của hệ màng lọc neural.
 
 ## 3.4 Thử nghiệm thăm dò trên dữ liệu kinh tế (Boston Housing)
 
@@ -162,7 +154,7 @@ graph TD
     MEDV["MEDV<br/>(Giá nhà)"] -- "- 0.07" --> LSTAT["LSTAT<br/>(% Dân nghèo)"]
     NOX["NOX<br/>(Ô nhiễm)"] -- "- 0.04" --> DIS["K/c trung tâm"]
 ```
-<p align="center"><b>Hình 3.3: Các nhân tố can thiệp chính trong dữ liệu Boston Housing</b></p>
+<p align="center"><b>Hình 3.4: Các nhân tố can thiệp chính trong dữ liệu Boston Housing</b></p>
 
 1.  **TAX (Thuế) → INDUS (Khu công nghiệp):** ATE dương mạnh (+0.08). Mô hình phát hiện mối liên hệ chặt chẽ giữa tỷ lệ thuế tài sản và tỷ lệ đất công nghiệp, phản ánh quy hoạch kinh tế đặc thù của các khu vực.
 2.  **RM (Số phòng) → MEDV (Giá nhà):** ATE dương (+0.06). Số phòng trung bình là yếu tố then chốt đẩy cao giá trị bất động sản.
