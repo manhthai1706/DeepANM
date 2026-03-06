@@ -8,9 +8,6 @@ Trong lý thuyết nhân quả, bài toán tìm kiếm đồ thị có hướng 
 
 ```mermaid
 graph TD
-    classDef highlight fill:#000,color:#fff,stroke:#333,stroke-width:2px;
-    classDef sub core fill:#bbf,stroke:#333,stroke-width:2px;
-    
     Data["Dữ liệu quan sát đa biến X"] --> Preprocess("Tiền xử lý đa tầng<br/>(Isolation Forest, Quantile)")
     
     subgraph phase1 ["Pha 1: Định hướng Topological"]
@@ -87,39 +84,32 @@ Dưới đây là sơ đồ luồng dữ liệu truyền tiến (Forward Pass) �
 
 ```mermaid
 graph TD
-    classDef wrapper fill:#f5f5f5,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5;
-    classDef pyclass fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
-    classDef var fill:#fff,stroke:#666,stroke-width:1px;
+    X["Đầu vào: x (X_masked)"]
     
-    Input["Đầu vào: X_masked"]:::var
-    
-    subgraph MLP_Class ["Đối tượng: Khối Mạng Lõi (MLP)"]
+    subgraph MLP_Forward ["Luồng thực thi MLP.forward(x)"]
         direction TB
         
-        Input --> Enc["Lớp: Encoder (VAE)"]:::pyclass
-        Enc --> Z["Trả về: z_soft"]:::var
-        Enc -.-> KL["Trả về: kl_loss"]:::var
+        X --> Step1_Enc["1. feat, z_soft, kl_loss = self.encoder(x)"]
+        Step1_Enc --> z_soft["z_soft"]
+        Step1_Enc --> kl_loss["kl_loss"]
         
-        Input --> SEM["Lớp: ANM_SEM"]:::pyclass
-        SEM --> Mu["Trả về: mu = f(X)"]:::var
+        X --> Step2_SEM["2. mu = self.sem(x)"]
+        Step2_SEM --> mu["mu"]
         
-        Input --> Dec["Lớp: Decoder (PNL)"]:::pyclass
-        Dec --> GX["Trả về: g(X)"]:::var
+        X --> Step3_Dec["3. g_x = self.pnl_transform(x)"]
+        Step3_Dec --> g_x["g_x"]
         
-        GX --> Sub{"Trừ (-)"}
-        Mu --> Sub
-        Sub --> Proxy["Đại diện Nhiễu: noise_proxy = g(X) - mu"]:::var
+        g_x --> CalcProxy["Tính: noise_proxy = g_x - mu"]
+        mu --> CalcProxy
         
-        Proxy --> GMM["Lớp: HeterogeneousNoiseModel"]:::pyclass
-        GMM --> NLL["Trả về: log_prob_noise"]:::var
+        CalcProxy --> Step4_Noise["4. \nself.noise_model.compute_log_prob(noise_proxy)"]
+        Step4_Noise --> log_prob_noise["log_prob_noise"]
         
-        Z --> Results[/"Từ điển Kết quả: {z_soft, kl_loss, mu, log_prob_noise}"/]
-        KL --> Results
-        Mu --> Results
-        NLL --> Results
+        z_soft --> Output[/"Trả về Dictionary: \n{z_soft, kl_loss, mu, log_prob_noise}"/]
+        kl_loss --> Output
+        mu --> Output
+        log_prob_noise --> Output
     end
-    
-    Results --> Loss["Giao tiếp tính Loss ở mạng ngoài (GPPOM)"]:::var
 ```
 <p align="center"><b>Hình 2.3: Ánh xạ cấu trúc mã nguồn (Object-Oriented) và luồng dữ liệu truyền tiến của mạng nhân quả bên trong file mlp.py</b></p>
 
