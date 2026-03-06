@@ -9,6 +9,8 @@ import time
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.models.deepanm import DeepANM
+from src.utils.visualize import plot_dag
+import matplotlib.pyplot as plt
 
 def main():
     print("="*60)
@@ -54,8 +56,8 @@ def main():
     start = time.time()
     
     prob_matrix, avg_W = model.fit_bootstrap(
-        df.values, n_bootstraps=3, apply_quantile=True,
-        discovery_mode='fast', layer_constraint=None, verbose=True
+        df.values, n_bootstraps=5, apply_quantile=True,
+        discovery_mode='fast', verbose=True
     )
     
     W = (prob_matrix >= 0.6).astype(int)
@@ -123,6 +125,20 @@ def main():
                 print(f"  NOX -> {name:<8s}  (ATE={ate:+.4f})  [{desc}]")
         else:
             print("  No downstream effects found from NOX.")
+
+    # ----- Visualization -----
+    print("\nGenerating Boston Housing DAG visualization...")
+    os.makedirs('results', exist_ok=True)
+    
+    fig, ax = plt.subplots(figsize=(10, 8))
+    # We pass avg_W * W so that the plot draws edges with their true ATE magnitude
+    plot_dag(avg_W * W, labels=labels, title="DeepANM Discovered DAG (Boston Housing)", 
+             ax=ax, threshold=1e-4) # any edge in W will have non-zero ATE
+             
+    plt.tight_layout()
+    save_path = "results/boston_dag.png"
+    plt.savefig(save_path, dpi=300)
+    print(f"Saved DAG plot to: {save_path}")
 
 if __name__ == '__main__':
     main()

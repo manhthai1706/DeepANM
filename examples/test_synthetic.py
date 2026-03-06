@@ -59,7 +59,7 @@ def main():
     
     prob_matrix, avg_W = model.fit_bootstrap(
         data, n_bootstraps=3, apply_quantile=True,
-        discovery_mode='fast', layer_constraint=None, verbose=True
+        discovery_mode='fast', verbose=True
     )
     
     W = (prob_matrix >= 0.5).astype(int)

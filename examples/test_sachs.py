@@ -4,6 +4,8 @@ import time
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.models.deepanm import DeepANM
+from src.utils.visualize import plot_dag
+import matplotlib.pyplot as plt
 
 def main():
     print("Download Sachs Data (CDT Version)...")
@@ -22,8 +24,8 @@ def main():
     model = DeepANM()  # Uses lean defaults: n_clusters=1, hidden_dim=16, lda=0.5
     start = time.time()
     
-    prob_matrix, avg_W = model.fit_bootstrap(df, n_bootstraps=5, apply_quantile=True, 
-                                             discovery_mode='fast', layer_constraint=None, verbose=True)
+    prob_matrix, avg_W = model.fit_bootstrap(df, n_bootstraps=1, apply_quantile=True, 
+                                             discovery_mode='fast', verbose=True)
     
     W = (prob_matrix >= 0.5).astype(int)
     
@@ -114,6 +116,23 @@ def main():
     print(f"    - Recall:     {recall:.4f}  ({recall*100:.1f}%)")
     print(f"    - F1 Score:   {f1:.4f}  ({f1*100:.1f}%)")
     print(f"    - NHD (Normalized Hamming Distance): {nhd:.4f}  ({nhd*100:.1f}%)")
+
+    # ----- Visualization -----
+    print("\nGenerating comparative visualization...")
+    W_true = np.zeros((len(labels), len(labels)))
+    for u, v in gt_edges:
+        W_true[u, v] = 1
+
+    os.makedirs('results', exist_ok=True)
+    # Using the new GT_matrix comparison feature
+    plot_dag(W, labels=labels, GT_matrix=W_true, 
+             title="DeepANM Causal Discovery vs Ground Truth (Sachs)",
+             threshold=0.1, # Use low threshold for binary matrix
+             save_path="results/sachs_comparison.png")
+    
+    print(f"Saved comparative DAG plot to: results/sachs_comparison.png")
+    
+    # plt.show()
 
 if __name__ == '__main__':
     main()

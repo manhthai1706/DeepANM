@@ -129,7 +129,7 @@ class DeepANM(nn.Module):
 
     def fit(self, X, epochs=50, batch_size=128, lr=5e-3, verbose=True,
             apply_quantile=False, apply_isolation=False,
-            discovery_mode="fast", layer_constraint=None, _precomputed_order=None,
+            discovery_mode="fast", _precomputed_order=None,
             use_rf=True, use_ci_pruning=True):
         """
         Main entry point for model training.
@@ -152,7 +152,7 @@ class DeepANM(nn.Module):
             if verbose: print("\n[DeepANM] Phase 1+2: FastANM Graph Discovery...")
             fast_model = FastANM()
             causal_graph = fast_model.fit(X, apply_quantile=apply_quantile, apply_isolation=apply_isolation,
-                                          verbose=verbose, layer_constraint=layer_constraint,
+                                          verbose=verbose,
                                           use_rf=use_rf, use_ci_pruning=use_ci_pruning)
             if verbose: print("\n[DeepANM] Phase 3: SCM Neural Fitting (Refining effects)...")
         elif discovery_mode == "topo":
@@ -167,12 +167,14 @@ class DeepANM(nn.Module):
         # 2. Run the actual training loop / Tiến hành vòng lặp huấn luyện thực tế
         trainer = DeepANMTrainer(self, lr=lr)
         self.history = trainer.train(X_p, epochs=epochs, batch_size=batch_size, verbose=verbose)
-        return self.history
+        
+        # 3. AUTOMATIC DISCOVERY: Return final matrices / TỰ ĐỘNG KHÁM PHÁ: Trả về các ma trận cuối cùng
+        return self.get_dag_matrix(X_p)
 
     def fit_bootstrap(self, X, n_bootstraps=5,
                       epochs=50, batch_size=128, lr=5e-3, verbose=True,
                       apply_quantile=False, apply_isolation=False, discovery_mode="fast",
-                      layer_constraint=None, use_rf=True, use_ci_pruning=True, use_scm_filter=True):
+                      use_rf=True, use_ci_pruning=True, use_scm_filter=True):
         """
         Stability Selection using resampled data batches. 
         Highly recommended to eliminate spurious edges in small datasets.
@@ -199,7 +201,7 @@ class DeepANM(nn.Module):
             self.core = None # Reset core for each round / Làm mới lõi mỗi vòng lặp
             self.fit(boot_data, epochs=epochs, batch_size=batch_size, lr=lr,
                      verbose=False, discovery_mode=discovery_mode,
-                     layer_constraint=layer_constraint, _precomputed_order=self._causal_order,
+                     _precomputed_order=self._causal_order,
                      use_rf=use_rf, use_ci_pruning=use_ci_pruning)
 
             # Accumulate discovered edges and their weights / Tích lũy các cạnh và trọng số đã khám phá
@@ -245,32 +247,7 @@ class DeepANM(nn.Module):
                     return ATE, W_bin
             else:
                 return W, (torch.sigmoid(self.core.W_logits).detach().cpu().numpy() > 0.5).astype(float) * self.core.topo_mask.cpu().numpy()
-
-    def set_exogenous(self, exog_indices):
-        """Utility to enforce specific nodes as root causes (no parents allowed). / Ép các nút trở thành nguyên nhân gốc."""
-        self.exog_indices = exog_indices
-        if self.core is not None:
-            for idx in exog_indices:
-                self.core.topo_mask[:, idx] = 0.0 # Clear all incoming columns / Xóa toàn bộ cột cạnh đi vào
-                self.core.constraint_mask[:, idx] = 0.0
-
-    def estimate_ate(self, X: np.ndarray, from_idx: int, to_idx: int) -> float:
-        """Computes intervention effect: how much Y changes if X is shifted. / Tính toán tác động can thiệp."""
-        self.eval()
-        if isinstance(X, torch.Tensor): X = X.cpu().numpy()
-        X_control = X.copy()
-        X_treatment = X.copy()
-        X_treatment[:, from_idx] += 1.0 # Simulate hypothetical intervention / Mô phỏng can thiệp giả định
-        return self.core.MLP.estimate_ate(X_control, X_treatment)
-
-    def predict_clusters(self, X):
-        """Identify which latent causal mechanism governs each sample. / Xác định cơ chế nhân quả ẩn ứng với mỗi mẫu."""
-        self.eval()
-        if isinstance(X, np.ndarray): X = torch.from_numpy(X).float()
-        with torch.no_grad():
-            out = self.core.MLP(X.to(self.device))
-            return out['z_soft'].argmax(dim=1).cpu().numpy() # Multi-mechanism switching / Chuyển đổi đa cơ chế
-
     def forward(self, x, temperature=1.0):
         """Routing forward pass to Core engine. / Điều hướng lan truyền tiến tới động cơ Core."""
         return self.core(x, temperature=temperature)
+

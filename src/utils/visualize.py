@@ -19,109 +19,131 @@ except ImportError:
     nx = None
     plt = None
 
-def plot_dag(W_matrix, labels=None, title="DeepANM Causal Discovery Graph",
+def plot_dag(W_matrix, labels=None, GT_matrix=None, title="DeepANM Causal Discovery Graph",
              threshold=0.1, ax=None, save_path=None, node_size=2000,
-             font_size=10, figure_size=(10, 8)):
+             font_size=10, figure_size=(12, 9)):
     """
     Render a weighted causal DAG as a directed graph. / Vẽ DAG nhân quả có trọng số.
-
-    Parameters / Tham số
-    ----------
-    W_matrix    : (n, n) adjacency matrix; W[i,j] ≠ 0 means edge i → j. / ma trận kề (n, n).
-    labels      : list of variable names (defaults to ['X0', 'X1', ...]) / danh sách tên biến.
-    title       : plot title / tiêu đề biểu đồ.
-    threshold   : minimum |W| to display an edge (weaker edges are hidden) / ngưỡng tối thiểu hiển thị cạnh.
-    ax          : matplotlib Axes to draw on / Axes matplotlib để vẽ.
-    save_path   : file path to save the figure / đường dẫn lưu hình.
-    node_size   : node circle size / kích thước node.
-    font_size   : label font size inside nodes / cỡ chữ nhãn node.
-    figure_size : (width, height) of the figure in inches / kích thước hình tính bằng inch.
+    Supports comparison with Ground Truth if GT_matrix is provided. / Hỗ trợ so sánh với Ground Truth.
     """
     if nx is None or plt is None:
         raise ImportError("Install required packages: pip install networkx matplotlib")
 
-    # Filter edges below threshold / Lọc các cạnh có trọng số tuyệt đối dưới ngưỡng
+    # Filter edges below threshold
     W_filtered = np.where(np.abs(W_matrix) > threshold, W_matrix, 0)
-    G = nx.DiGraph(W_filtered) # Tạo đối tượng đồ thị có hướng / Create directed graph object
+    G = nx.DiGraph(W_filtered)
 
-    # Map node indices to variable names / Ánh xạ chỉ số node thành tên biến thực tế
     n_nodes = W_matrix.shape[0]
     if labels is None:
         labels = [f"X{i}" for i in range(n_nodes)]
+    
+    # Map node indices to labels
     G = nx.relabel_nodes(G, {i: labels[i] for i in range(n_nodes)})
+
+    # Initialize GT graph if provided
+    G_gt = None
+    if GT_matrix is not None:
+        G_gt = nx.DiGraph(np.abs(GT_matrix) > 0.1)
+        G_gt = nx.relabel_nodes(G_gt, {i: labels[i] for i in range(n_nodes)})
 
     show_plot = False
     if ax is None:
-        fig, ax = plt.subplots(figsize=figure_size) # Tạo figure mới nếu ax chưa có / Create new figure if ax is None
+        fig, ax = plt.subplots(figsize=figure_size)
         show_plot = True
 
-    # Handle empty graph cases / Xử lý trường hợp đồ thị rỗng (không có cạnh trên ngưỡng)
     if len(G.edges) == 0:
         ax.text(0.5, 0.5, "No Edges Found Above Threshold", horizontalalignment='center',
                 verticalalignment='center', fontsize=20, color='red', transform=ax.transAxes)
         ax.set_title(title)
         ax.axis('off')
-        if show_plot and save_path is None:
-            plt.show()
-        elif save_path:
-            plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        if show_plot:
+            if save_path: plt.savefig(save_path, bbox_inches='tight', dpi=300)
+            else: plt.show()
         return
 
-    # Extract edge weights for color and width scaling / Lấy trọng số cạnh để ánh xạ màu và độ rộng
-    edges = G.edges(data=True)
-    weights = [abs(data['weight']) for u, v, data in edges]
+    # Categorize edges and determine styles
+    edges = list(G.edges())
+    edge_colors = []
+    edge_styles = []
     
-    max_w = max(weights) if weights else 1.0
-    min_w = min(weights) if weights else 0.0
-    # Normalize weights for colormap / Chuẩn hóa trọng số cho bảng màu
-    norm = mcolors.Normalize(vmin=0 if max_w == min_w else min_w,
-                             vmax=max_w + (1e-5 if max_w == min_w else 0))
-    
-    # Color scheme: winter_r (blue → teal gradient for professional look)
-    # Sơ đồ màu: winter_r (biến thiên xanh dương → xanh ngọc cho giao diện chuyên nghiệp)
-    cmap = plt.cm.winter_r
-    edge_colors = [cmap(norm(w)) for w in weights]
-    
-    # Arrow thickness proportional to causal effect strength / Độ rộng mũi tên tỷ lệ với cường độ nhân quả
-    edge_widths = [1.5 + (w / (max_w + 1e-9)) * 3.5 for w in weights]
+    # Colors matching the image reference
+    COLOR_CORRECT = "#c0392b"    # Red
+    COLOR_INDIRECT = "#2980b9"   # Blue
+    COLOR_REVERSED = "#f39c12"   # Yellow/Orange
+    COLOR_UNEXPLAINED = "#27ae60" # Green
 
-    # Spring layout (Fruchterman-Reingold) algorithm for optimal node placement
-    # Thuật toán bố cục spring (Fruchterman-Reingold) để tối ưu vị trí node
-    pos = nx.spring_layout(G, k=1.5, iterations=100, seed=42, weight=None)
+    if G_gt is not None:
+        for u, v in edges:
+            if G_gt.has_edge(u, v):
+                edge_colors.append(COLOR_CORRECT)
+                edge_styles.append("solid")
+            elif G_gt.has_edge(v, u):
+                edge_colors.append(COLOR_REVERSED)
+                edge_styles.append("solid")
+            elif nx.has_path(G_gt, u, v):
+                edge_colors.append(COLOR_INDIRECT)
+                edge_styles.append("dashed")
+            else:
+                edge_colors.append(COLOR_UNEXPLAINED)
+                edge_styles.append("dashed")
+    else:
+        # Default behavior without GT: Use coloring based on weight (ATE/Prob)
+        weights = [abs(G[u][v]['weight']) for u, v in edges]
+        max_w = max(weights) if weights else 1.0
+        norm = mcolors.Normalize(vmin=0, vmax=max_w)
+        cmap = plt.cm.winter_r
+        edge_colors = [cmap(norm(w)) for w in weights]
+        edge_styles = ["solid"] * len(edges)
 
-    # Draw nodes with white fill and dark slate border / Vẽ các node với nền trắng và viền đá đậm
+    # Node positions
+    pos = nx.spring_layout(G, k=1.8, iterations=150, seed=42)
+
+    # Draw nodes (Oval-like style from image)
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size,
-                           node_color='white', alpha=1.0,
-                           edgecolors='#2c3e50', linewidths=2.5)
+                           node_color='#d6eaf8', # Light blue fill
+                           edgecolors='#2e86c1', # Dark blue border
+                           linewidths=2.0)
     
-    # Draw variable labels inside the nodes / Vẽ nhãn tên biến bên trong các node
     nx.draw_networkx_labels(G, pos, ax=ax, font_size=font_size,
-                            font_weight='bold', font_color='black')
+                            font_weight='bold', font_color='#1b2631')
     
-    # Draw curved arcs instead of straight lines to avoid overlap / Vẽ các cung cong để tránh chồng lấp
-    nx.draw_networkx_edges(G, pos, ax=ax, arrowstyle='-|>', arrowsize=22,
-                           edge_color=edge_colors, width=edge_widths,
-                           node_size=node_size, # Ensures arrowheads stop at node border / Đảm bảo mũi tên dừng sát viền node
-                           connectionstyle="arc3,rad=0.1", alpha=0.85)
+    # Draw edges with specific patterns
+    for i, (u, v) in enumerate(edges):
+        nx.draw_networkx_edges(G, pos, edgelist=[(u, v)], ax=ax, 
+                               arrowstyle='-|>', arrowsize=20,
+                               edge_color=edge_colors[i],
+                               style=edge_styles[i],
+                               width=2.5,
+                               connectionstyle="arc3,rad=0.1",
+                               node_size=node_size, alpha=0.9)
 
-    ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
-    ax.axis('off') # Hide coordinate axes / Ẩn trục tọa độ
-    
-    # Add colorbar for magnitude reference / Thêm thanh màu để tham chiếu cường độ
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label('Causal Effect Strength (ATE / Prob)', rotation=270, labelpad=15, fontweight='bold')
+    ax.set_title(title, fontsize=18, fontweight='bold', pad=30)
+    ax.axis('off')
+
+    # Add Legend if GT comparison is active
+    if G_gt is not None:
+        from matplotlib.lines import Line2D
+        custom_lines = [
+            Line2D([0], [0], color=COLOR_CORRECT, lw=2, linestyle='-'),
+            Line2D([0], [0], color=COLOR_INDIRECT, lw=2, linestyle='--'),
+            Line2D([0], [0], color=COLOR_REVERSED, lw=2, linestyle='-'),
+            Line2D([0], [0], color=COLOR_UNEXPLAINED, lw=2, linestyle='--')
+        ]
+        ax.legend(custom_lines, ['Correct Edge', 'Indirect Edge', 'Reversed Edge', 'Unexplained Edge'],
+                  loc='center left', bbox_to_anchor=(1, 0.5), frameon=True, fontsize=11, title="Edge Categories")
+    else:
+        # Add colorbar for weight-based coloring
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label('Causal Effect Strength (ATE / Prob)', rotation=270, labelpad=15, fontweight='bold')
 
     plt.tight_layout()
 
-    # Save to file if path provided / Lưu ra file nếu có đường dẫn
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300, transparent=False)
-        print(f"Causal graph saved to: {save_path}") # In thông báo lưu file thành công
+        print(f"Causal graph comparison saved to: {save_path}")
         
-    if show_plot and save_path is None:
-        plt.show() # Show interactive window / Hiển thị cửa sổ tương tác
-    
-    if show_plot and save_path is not None:
-        plt.close() # Free resources after saving / Giải phóng tài nguyên sau khi lưu
+    if show_plot:
+        if save_path is None: plt.show()
+        else: plt.close()

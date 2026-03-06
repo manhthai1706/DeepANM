@@ -22,7 +22,7 @@ class DeepANMTrainer:
         self.model = model
         # AdamW for robust optimization with weight decay / AdamW giúp tối ưu hóa bền vững kèm điều chuẩn
         self.optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-        self.history = {"loss": [], "nll": [], "hsic": [], "reg": []}
+        self.history = {"loss": [], "nll": [], "hsic": [], "reg": [], "h_val": []}
         
     def train(self, X, epochs=200, batch_size=64, verbose=True):
         """
@@ -42,7 +42,7 @@ class DeepANMTrainer:
         if verbose:
             print(f">> Training DeepANM on {self.model.device}")
             print(f"   Variables: {X.shape[1]}, Samples: {X.shape[0]}")
-            print(f"   Mode: Augmented Lagrangian DAG (NOTEARS) + SplineFlow + VAE")
+            print(f"   Mode: Augmented Lagrangian DAG (DAGMA) + SplineFlow + VAE")
             print("-" * 60)
         
         # Initialize ALM penalty variables / Khởi tạo các biến phạt ALM
@@ -108,6 +108,7 @@ class DeepANMTrainer:
             self.history['nll'].append(epoch_nll / n_batches)
             self.history['reg'].append(epoch_reg / n_batches)
             self.history['hsic'].append(epoch_hsic / n_batches)
+            self.history['h_val'].append(curr_h_val)
             
             # Display status periodically / Hiển thị trạng thái định kỳ
             if verbose and (epoch + 1) % 50 == 0:

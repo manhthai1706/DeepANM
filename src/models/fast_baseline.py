@@ -46,14 +46,13 @@ class FastANM:
         return X
 
     def fit(self, X, apply_quantile=False, apply_isolation=False, verbose=True,
-            layer_constraint=None, use_rf=True, use_ci_pruning=True):
+            use_rf=True, use_ci_pruning=True):
         """
         Run the FastANM discovery pipeline on dataset X.
         Chạy pipeline khám phá FastANM trên tập dữ liệu X.
 
         Parameters / Tham số
         ----------
-        layer_constraint : prior knowledge about variable levels. / tri thức trước về các tầng biến.
         use_rf           : toggles Random Forest importance. / bật/tắt tầm quan trọng Random Forest.
         use_ci_pruning   : toggles secondary statistical pruning. / bật/tắt lọc thống kê lần hai.
 
@@ -80,7 +79,7 @@ class FastANM:
             print("[FastMode] Step 2/2: Running Adaptive LASSO for edge selection...")
             
         # Select best edges respecting the topological flow / Chọn các cạnh tốt nhất tuân thủ dòng chảy topo
-        self.W_ = adaptive_lasso_dag(X_p, self.causal_order_, layer_constraint=layer_constraint,
+        self.W_ = adaptive_lasso_dag(X_p, self.causal_order_,
                                      use_rf=use_rf, use_ci_pruning=use_ci_pruning)
         
         if verbose:

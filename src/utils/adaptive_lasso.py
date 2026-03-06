@@ -103,7 +103,7 @@ def _partial_correlation_pruning(X: np.ndarray, parent: int, target: int, other_
         return False
 
 
-def adaptive_lasso_dag(X: np.ndarray, causal_order: list, layer_constraint=None,
+def adaptive_lasso_dag(X: np.ndarray, causal_order: list,
                        use_rf=True, use_ci_pruning=True) -> np.ndarray:
     """
     Assembles a binary DAG matrix using per-node nonlinear parent selection.
@@ -124,24 +124,8 @@ def adaptive_lasso_dag(X: np.ndarray, causal_order: list, layer_constraint=None,
         potential_parents = causal_order[:step]
         if len(potential_parents) == 0:
             continue
-            
-        # Optional: Apply biological layer constraints (prevent cross-layer violation)
-        # Tùy chọn: Áp dụng ràng buộc tầng sinh học (tránh vi phạm thứ tự tầng)
-        target_layer = layer_constraint.get(j, 5) if layer_constraint else None
-        valid_parents = []
-        for p in potential_parents:
-            if layer_constraint is None:
-                valid_parents.append(p)
-            else:
-                parent_layer = layer_constraint.get(p, 5)
-                # Only allow edges from higher layer to lower or equal layer (sink flow)
-                # Chỉ cho phép cạnh từ tầng cao xuống thấp hoặc bằng (dòng chảy hạ nguồn)
-                if parent_layer <= target_layer:
-                    valid_parents.append(p)
-                
-        if len(valid_parents) == 0:
-            continue
 
+        valid_parents = potential_parents
         X_parents = X[:, valid_parents]
         Xj = X[:, j]
 
@@ -174,6 +158,6 @@ def adaptive_lasso_from_ate(ATE: np.ndarray, X: np.ndarray,
     Đảm bảo cạnh vừa bền vững về thống kê vừa có ý nghĩa về giá trị số học.
     """
     W_lasso = adaptive_lasso_dag(X, causal_order) # Gate 1: Statistical presence / Cổng 1: Hiện diện thống kê
-    # Gate 2: Causal Magnitude (ATE must be > 0.01) / Cổng 2: Cường độ nhân quả (ATE > 0.01)
-    ATE_gate = (np.abs(ATE) > 0.01).astype(float)
+    # Gate 2: Causal Magnitude (ATE must be > 0.005) / Cổng 2: Cường độ nhân quả (ATE > 0.005)
+    ATE_gate = (np.abs(ATE) > 0.005).astype(float)
     return (W_lasso * ATE_gate).astype(float)

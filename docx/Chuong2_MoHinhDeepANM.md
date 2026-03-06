@@ -172,7 +172,7 @@ sequenceDiagram
     end
     Adam->>ALM: Trả về đồ thị hiện tại
     ALM->>ALM: Kiểm tra ràng buộc
-    Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 10 lần
+    Note over ALM: Nếu vẫn còn vòng lặp -> Tăng hình phạt gấp 20 lần
     ALM->>Adam: Tiếp tục huấn luyện với rào chắn cứng hơn
 ```
 <p align="center"><b>Hình 2.4: Biểu đồ trình tự động lực học của thuật toán ALM</b></p>

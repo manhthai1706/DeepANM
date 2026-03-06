@@ -68,10 +68,6 @@ def test_deepanm_bootstrap_and_ate():
     clusters = model.predict_clusters(X)
     assert clusters.shape == (30,) # Mỗi mẫu có 1 nhãn cụm / Each sample has 1 cluster label
     assert set(clusters).issubset({0, 1}) # Nhãn phải thuộc {0, 1} / Labels must be in {0, 1}
-    
-    # Estimate specific Average Treatment Effect / Ước lượng tác động nhân quả cụ thể
-    ate = model.estimate_ate(X, from_idx=0, to_idx=1) # Tác động từ nút 0 đến nút 1
-    assert isinstance(ate, float) # Kết quả phải là số thực / Result must be a float
 
 
 def test_visualize_plot_dag(tmp_path):

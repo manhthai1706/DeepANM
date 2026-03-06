@@ -191,17 +191,4 @@ def test_deepanm_modes():
     assert ATE2.shape == (d, d)
 
 
-def test_prior_constraint():
-    """Verify the Exogenous prior constraint mechanism works properly to exclude incoming causal arrows
-    Kiểm tra cơ chế ràng buộc ngoại sinh hoạt động chính xác để loại bỏ các mũi tên nhân quả đi vào"""
-    d = 3
-    model = DeepANM(x_dim=d)
-    
-    # By default, constraint mask allows any edge except diagonal / Mặc định mặt nạ cho phép mọi cạnh trừ đường chéo
-    # Mark node 1 as Exogenous (meaning NO incoming edges) / Đánh dấu nút 1 là ngoại sinh (KHÔNG có cạnh đi vào)
-    model.set_exogenous([1])
-    
-    W_mask = model.core.constraint_mask.cpu().numpy() # Lấy mặt nạ ràng buộc / Get constraint mask
-    
-    # Column 1 should be entirely 0.0 (no parent -> 1) / Cột 1 phải hoàn toàn bằng 0 (không có cha -> 1)
-    assert np.all(W_mask[:, 1] == 0.0)
+
