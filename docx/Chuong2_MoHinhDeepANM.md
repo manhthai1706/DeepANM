@@ -56,6 +56,7 @@ DeepANM áp dụng chiến lược sắp xếp chìm (Greedy Sink-First). Nút "
 ```mermaid
 graph TD
     subgraph TopoSort ["Quy trình TopoSort HSIC"]
+        direction TB
         X["Tập biến ứng cử viên X_rest"] --> RFF["Xấp xỉ đặc trưng RFF"]
         RFF --> Sink_Test["Kiểm định HSIC (Độc lập phần dư)"]
         Sink_Test --> |"Độc lập nhất"| Sink_Node["Chọn làm Nút Sink (cuối cùng)"]
