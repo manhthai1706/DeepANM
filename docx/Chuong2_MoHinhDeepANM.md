@@ -119,25 +119,26 @@ Mục đích thiết kế trên cùng là nhằm thiết lập song song đầu 
 
 ```mermaid
 graph TD
-    W_logits["Trọng số Cạnh thô chưa quy chuẩn"] --> Gate["Cổng Gumbel-Sigmoid (Đạo hàm xuyên thấu)"]
-    Gate -->|"Tạo vòm ánh xạ cạnh nhị phân"| W_mask["Ma trận Màng lọc Cạnh"]
-    X["Dữ liệu quan sát gốc"] --> Masking{"Sàng lọc và nhân ma trận với Màng lọc Cạnh"}
+    W_logits["Ma trận Trọng số thô (W_logits)"] --> Gate["Cổng Gumbel-Sigmoid (Ước lượng STE)"]
+    Gate -->|"Rời rạc hóa tiến, Vi phân ngược"| W_mask["Ma trận kề Nhị phân (W_mask)"]
+    X["Dữ liệu quan sát đa biến X"] --> Masking{"Sàng lọc Đặc trưng (Masking) theo W_mask"}
     
-    Masking --> MLP["Mạng lõi (Khai thác cơ chế ẩn và Quy luật SCM)"]
+    Masking --> MLP["Khối Neural Lõi (VAE & SEM)"]
     
-    subgraph SongSong ["Đầu dự báo phụ trợ theo Tiến trình Gaussian"]
-        MLP -.-> |"Nhãn cơ chế"| GP_Z["Ánh xạ đặc trưng cơ chế học được"]
-        Masking --> GP_X["Ánh xạ đặc trưng không gian biến X"]
-        GP_Z --> Combine{"Tích chập Hadamard"}
+    subgraph SongSong ["Tiến trình Gaussian (RFF-GP) Phụ trợ"]
+        direction TB
+        MLP -.-> |"Cơ chế tiềm ẩn (Z)"| GP_Z["Đặc trưng Không gian Cơ chế (GP_Z)"]
+        Masking --> GP_X["Đặc trưng Không gian Biến (GP_X)"]
+        GP_Z --> Combine{"Tích Hadamard (Element-wise)"}
         GP_X --> Combine
-        Combine --> Linear["Đầu ra Hàm tuyến tính phụ trợ"]
+        Combine --> Linear["Lớp Dự báo Tuyến tính"]
     end
     
-    MLP --> |"Gía trị cốt lõi f(X)"| Sum{"Tổng hợp Dự đoán Cường độ"}
-    Linear --> Sum
-    Sum --> Y_pred["Dự đoán Điểm dữ liệu Cuối cùng"]
+    MLP --> |"Lực can thiệp lõi f(X)"| Sum{"Cộng gộp Đầu ra"}
+    Linear --> |"Dự báo phụ trợ"| Sum
+    Sum --> Y_pred["Dự báo Tổng hợp (Y_pred)"]
 ```
-<p align="center"><b>Hình 2.4: Kiến trúc Điều phối Đồng thời tích hợp khai thác quy luật ẩn quy mô rộng và tiến trình nội suy cục bộ.</b></p>
+<p align="center"><b>Hình 2.4: Kiến trúc bộ dự báo song song kết hợp Mạng học sâu và Tiến trình Gaussian.</b></p>
 
 Công nghệ làm thay đổi cục diện thực sự của toàn mạng lưới nằm ở **Cổng Gumbel-Sigmoid sử dụng phương pháp Đạo hàm Xuyên thấu (Straight-Through Estimator)**. Xét bản chất một đồ thị phải tuân thủ dạng nhị phân rạch ròi. Ở hướng truyền tiến quy luật, Cổng Gumbel dùng hàm cắt tầng đột ngột để áp đặt cạnh là số thực 0 hoặc 1. Thế nhưng, tại pha cập nhật sai số đạo hàm ngược, quá trình Gradient sẽ lẩn tránh hàm đột biến và luồn qua cung hàm Sigmoid êm ái, bẻ cong không gian tối ưu để mô hình hoàn thành quá trình đào tạo ma trận không rời rạc hóa.
 
@@ -186,31 +187,31 @@ Với một đồ thị được rèn giũa từ một tổ hợp hàm mạng ne
 
 ```mermaid
 graph TD
-    Raw["Cạnh ứng cử viên từ Mô hình Neural Sinh ra"]
+    Raw["Cạnh ứng viên khởi tạo từ ALM"]
     
-    subgraph Gate1 ["Màng 1: Rào chắn Lực Can thiệp (Jacobian ATE)"]
-        Raw --> Jacobian["Khai triển đạo hàm hàm bộ giải mã truy hồi mức độ thay đổi cục bộ"]
-        Jacobian --> Cond1{"Tác động Đủ ngưỡng?"}
+    subgraph Gate1 ["Bước 1: Kiểm định Độ lớn Can thiệp"]
+        Raw --> Jacobian["Tính toán Ma trận Causal Jacobian ATE"]
+        Jacobian --> Cond1{"|ATE| > Tối thiểu (0.005)?"}
     end
     
-    subgraph Gate2 ["Màng 2: Thử thách Sụp đổ Rừng Ngẫu nhiên"]
-        Cond1 --> |"Đủ ngưỡng Khởi động"| RF["Hoán vị xáo trộn ngẫu nhiên toàn bộ trục nguyên nhân"]
-        RF --> Cond2{"Sụt giảm khả năng dự đoán quá tỷ lệ an toàn quy định?"}
+    subgraph Gate2 ["Bước 2: Phân tích Tầm quan trọng Phi tuyến"]
+        Cond1 --> |"Đạt ngưỡng ATE"| RF["Xáo trộn Đặc trưng với Random Forest"]
+        RF --> Cond2{"Độ suy giảm R-Squared > 3%?"}
     end
     
-    subgraph Gate3 ["Màng 3: Hậu kiểm Độc lập Cầu nối"]
-        Cond2 --> |"Quyết định Đóng góp Đủ"| HistGBM["Tính chiết phần dư phụ thuộc qua mô hình học máy tăng cường biểu đồ"]
-        HistGBM --> Pearson["Đối xạ phân tích tương quan Độc lập mức cao chót"]
-        Pearson --> Cond3{"Phủ nhận hoàn toàn các liên kết mang tính giao hòa gián tiếp?"}
+    subgraph Gate3 ["Bước 3: Kiểm định Độc lập Điều kiện (CI Test)"]
+        Cond2 --> |"Có lực tương quan"| HistGBM["Hồi quy đa biến HistGradientBoosting"]
+        HistGBM --> Pearson["Tính phần dư và đánh giá Tương quan Pearson"]
+        Pearson --> Cond3{"Kiểm định Ý nghĩa Thống kê (p-value > 0.01)?"}
     end
     
-    Cond3 --> |"Hoàn toàn Thuyết phục"| Final["Ấn định Cạnh Nhân quả Tuyệt đối"]
+    Cond3 --> |"Biến độc lập sau khi tách trung gian"| Final["Xác nhận Cạnh Nhân quả Phi chập"]
     
-    Cond1 -.-> |"Ngụy cạnh toán học tĩnh"| Drop["Thải loại khỏi mạng nhân quả"]
-    Cond2 -.-> |"Tính thống kê ảo"| Drop
-    Cond3 -.-> |"Liên kết Mượn đường gián tiếp qua trung gian"| Drop
+    Cond1 -.-> |"Tác động cận vô cùng bé"| Drop["Loại bỏ Liên kết"]
+    Cond2 -.-> |"Bị hấp thụ bởi nhiễu"| Drop
+    Cond3 -.-> |"Liên kết gián tiếp (A -> B -> C)"| Drop
 ```
-<p align="center"><b>Hình 2.6: Cỗ máy Mạng rây đa cổng loại bỏ triệt để các rủi ro tính tương quan giả và hệ quả bắc cầu.</b></p>
+<p align="center"><b>Hình 2.6: Quy trình tinh lọc Adaptive LASSO loại bỏ hệ số gây nhiễu và tương quan giả thông qua 3 cấp độ kiểm định.</b></p>
 
 1.  **Cường độ Causal Jacobian (Màng 1):** Cạnh tìm được không chỉ để có mà phải gây rúng động đến biến đích. Bằng phép tính vi phân xuyên suốt chức năng của bộ tiền xử lý phi tuyến, hệ thống trả về chỉ số Tác động Cố ý (Average Treatment Effect - ATE). Chỉ cạnh sở hữu điểm lực tác động vật lý dương thực tế mới được truyền sang vòm sau.
 2.  **Sức chống sốc Tác động (Màng 2):** Khối kiểm định sử dụng mô hình học máy thứ ba bám sát đánh sập thử trật tự cấu trúc biến nguyên nhân đang xét. Biến nào bị xáo trộn mà đồ thị không xi nhê sụp đổ giá trị đo R-Squared, biến đó không mang trong mình giá trị nguyên nhân tiên quyết.
