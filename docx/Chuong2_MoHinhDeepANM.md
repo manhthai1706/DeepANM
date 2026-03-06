@@ -126,14 +126,14 @@ graph TD
     Masking --> MLP["Mạng lõi (Khai thác cơ chế ẩn và Quy luật SCM)"]
     
     subgraph SongSong ["Đầu dự báo phụ trợ theo Tiến trình Gaussian"]
-        MLP -.-> |Nhãn cơ chế| GP_Z["Ánh xạ đặc trưng cơ chế học được"]
+        MLP -.-> |"Nhãn cơ chế"| GP_Z["Ánh xạ đặc trưng cơ chế học được"]
         Masking --> GP_X["Ánh xạ đặc trưng không gian biến X"]
         GP_Z --> Combine{"Tích chập Hadamard"}
         GP_X --> Combine
         Combine --> Linear["Đầu ra Hàm tuyến tính phụ trợ"]
     end
     
-    MLP --> |Gía trị cốt lõi f(X)| Sum{"Tổng hợp Dự đoán Cường độ"}
+    MLP --> |"Gía trị cốt lõi f(X)"| Sum{"Tổng hợp Dự đoán Cường độ"}
     Linear --> Sum
     Sum --> Y_pred["Dự đoán Điểm dữ liệu Cuối cùng"]
 ```
@@ -194,21 +194,21 @@ graph TD
     end
     
     subgraph Gate2 ["Màng 2: Thử thách Sụp đổ Rừng Ngẫu nhiên"]
-        Cond1 --> |Đủ ngưỡng Khởi động| RF["Hoán vị xáo trộn ngẫu nhiên toàn bộ trục nguyên nhân"]
+        Cond1 --> |"Đủ ngưỡng Khởi động"| RF["Hoán vị xáo trộn ngẫu nhiên toàn bộ trục nguyên nhân"]
         RF --> Cond2{"Sụt giảm khả năng dự đoán quá tỷ lệ an toàn quy định?"}
     end
     
     subgraph Gate3 ["Màng 3: Hậu kiểm Độc lập Cầu nối"]
-        Cond2 --> |Quyết định Đóng góp Đủ| HistGBM["Tính chiết phần dư phụ thuộc qua mô hình học máy tăng cường biểu đồ"]
+        Cond2 --> |"Quyết định Đóng góp Đủ"| HistGBM["Tính chiết phần dư phụ thuộc qua mô hình học máy tăng cường biểu đồ"]
         HistGBM --> Pearson["Đối xạ phân tích tương quan Độc lập mức cao chót"]
         Pearson --> Cond3{"Phủ nhận hoàn toàn các liên kết mang tính giao hòa gián tiếp?"}
     end
     
-    Cond3 --> |Hoàn toàn Thuyết phục| Final["Ấn định Cạnh Nhân quả Tuyệt đối"]
+    Cond3 --> |"Hoàn toàn Thuyết phục"| Final["Ấn định Cạnh Nhân quả Tuyệt đối"]
     
-    Cond1 -.-> |Ngụy cạnh toán học tĩnh| Drop["Thải loại khỏi mạng nhân quả"]
-    Cond2 -.-> |Tính thống kê ảo| Drop
-    Cond3 -.-> |Liên kết Mượn đường (A -> B -> C)| Drop
+    Cond1 -.-> |"Ngụy cạnh toán học tĩnh"| Drop["Thải loại khỏi mạng nhân quả"]
+    Cond2 -.-> |"Tính thống kê ảo"| Drop
+    Cond3 -.-> |"Liên kết Mượn đường gián tiếp qua trung gian"| Drop
 ```
 <p align="center"><b>Hình 2.6: Cỗ máy Mạng rây đa cổng loại bỏ triệt để các rủi ro tính tương quan giả và hệ quả bắc cầu.</b></p>
 
