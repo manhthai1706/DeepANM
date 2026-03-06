@@ -15,7 +15,7 @@ graph TD
         FastANM --> Topo["Bộ phân tích Thứ tự TopoSort"]
     end
     
-    subgraph phase2 ["Pha 2: Học cấu trúc liên tục"]
+    subgraph phase2 ["Pha 2: Học cấu trúc "]
         Topo -->|"Thứ tự ưu tiên (Prior)"| GPPOM["Mạng Neural Lõi Mô phỏng Lực Cơ chế"]
         GPPOM <--> |"Chấm điểm & Phạt cấu trúc chu trình"| Trainer["Bộ Điều phối Tối ưu (ALM)"]
     end
